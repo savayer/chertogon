@@ -24,6 +24,7 @@ export const BOSSES = [
 
 const PICKUPS = 'mlcvhbw';
 const BUFF_OF = { v: ['vape', 15], b: ['beer', 12], w: ['whiskey', 8], l: ['lighter', 10] };
+export const POPUP_LIFE = 1.4; // s a "what you got" popup lives after a pickup
 
 export function parseLevel(level) {
   const rows = level.map.length;
@@ -61,7 +62,7 @@ export function createGame(levels = LEVELS) {
   return {
     levels, levelIndex: 0, mode: 'playing', time: 0, acc: 0, camX: 0, deaths: 0, deadT: 0, deathCause: null,
     player: newPlayer(), level: null, checkpoint: null, prevJump: false,
-    enemies: [], boss: null, shots: [], enemyShots: [], pickups: [], particles: [],
+    enemies: [], boss: null, shots: [], enemyShots: [], pickups: [], particles: [], popups: [],
     events: [], // sound cues for the UI to drain: shoot, fire, kill, stomp, pickup-<kind>, hurt, death, spit, bossHit, bossDown, victory
   };
 }
@@ -82,7 +83,7 @@ function resetLevel(state) {
   const def = state.levels[state.levelIndex];
   const lvl = parseLevel(def);
   Object.assign(state, {
-    level: lvl, mode: 'playing', enemies: [], pickups: [], shots: [], enemyShots: [], boss: null, particles: [],
+    level: lvl, mode: 'playing', enemies: [], pickups: [], shots: [], enemyShots: [], boss: null, particles: [], popups: [],
   });
   for (const e of lvl.entities) {
     if (e.ch === 'd') {
@@ -420,6 +421,7 @@ function contacts(state) {
     if (overlap(p, k)) {
       applyPickup(state, k.kind);
       emit(state, `pickup-${k.kind}`);
+      state.popups.push({ kind: k.kind, t: 0 });
       k.taken = true;
       burst(state, cx(k), k.y + k.h / 2, '#fff59d', 8, 120);
     }
@@ -436,6 +438,8 @@ function tick(state, input) {
     q.life -= STEP;
   }
   state.particles = state.particles.filter((q) => q.life > 0);
+  for (const q of state.popups) q.t += STEP;
+  state.popups = state.popups.filter((q) => q.t < POPUP_LIFE);
   if (state.mode === 'dead') {
     const p = state.player;
     state.deadT += STEP;

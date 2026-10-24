@@ -22,14 +22,14 @@ export function drawSprite(ctx, name, i) {
   ctx.drawImage(img, f.x, f.y, f.w, f.h, -f.ax / res, -f.ay / res, f.w / res, f.h / res);
 }
 
-const RUN_STEP = 14; // world px walked per run frame
+const RUN_STEP = 26; // world px walked per run frame: 10 frames/s at full speed (faster looked twitchy)
 
-// Hero frames: 0 idle, 1-6 run, 7 throw, 8 jump, 9 fall, 10 hurt (also lying dead).
+// Hero frames: 0 idle, 1-8 run, 9 throw, 10 jump, 11 fall, 12 hurt (also lying dead).
 export function heroFrame({ moving, throwing, airborne, rising, hurt, lying }, walk) {
-  if (hurt || lying) return 10;
-  if (throwing) return 7;
-  if (airborne) return rising ? 8 : 9;
-  if (moving) return 1 + (Math.floor(walk / RUN_STEP) % 6);
+  if (hurt || lying) return 12;
+  if (throwing) return 9;
+  if (airborne) return rising ? 10 : 11;
+  if (moving) return 1 + (Math.floor(walk / RUN_STEP) % 8);
   return 0;
 }
 

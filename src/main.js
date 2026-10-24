@@ -253,8 +253,8 @@ function frame(now) {
   if (screen === 'menu') {
     pctx.setTransform(1, 0, 0, 1, 0, 0);
     pctx.clearRect(0, 0, preview.width, preview.height);
-    pctx.setTransform(3.6, 0, 0, 3.6, 0, 0);
-    drawCharacter(pctx, 30, 48, 1, now * 0.2, head, { moving: true });
+    pctx.setTransform(3, 0, 0, 3, 0, 0);
+    drawCharacter(pctx, 39, 69, 1, now * 0.26, head, { moving: true }); // walk at the game's 260 px/s
   }
   requestAnimationFrame(frame);
 }

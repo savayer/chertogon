@@ -1,4 +1,4 @@
-import { TILE, VIEW_W, VIEW_H } from './game.js';
+import { TILE, VIEW_W, VIEW_H, POPUP_LIFE } from './game.js';
 import { HEAD_W, HEAD_H, CHIN_Y } from './face-math.js';
 import { t } from './i18n.js';
 import { drawSprite, heroFrame, heroChin, itemFrame } from './sprites.js';
@@ -180,7 +180,6 @@ function drawBoss(ctx, b, index, time) {
   ctx.save();
   ctx.translate(b.x + b.w / 2, b.y + b.h);
   ctx.scale(b.facing, 1);
-  if (b.hurt > 0 && Math.floor(time * 30) % 2) ctx.globalAlpha = 0.5;
   drawSprite(ctx, `boss${index}`, frame);
   ctx.restore();
 }
@@ -268,18 +267,77 @@ function label(ctx, text, x, y, size = 18, align = 'left', color = '#fff') {
   ctx.fillText(text, x, y);
 }
 
+// Pickup popups: the icon and what it gave pop up over the head, then fly to the HUD line they changed,
+// which pulses when they land.
+const POP_HOLD = 0.55; // s over the head
+const POP_FLY = 0.55; // s on the way to the HUD; the rest of POPUP_LIFE is the HUD pulse
+const POP_TEXT = { m: 'gainMatches', l: 'gainLighter', c: 'gainCig', v: 'gainVape', h: 'gainHookah', b: 'gainBeer', w: 'gainWhiskey' };
+const POP_LINE = { m: 'ammo', l: 'buffs' }; // everything else heals: hearts
+const HUD_Y = { hearts: 20, ammo: 50, buffs: 74 }; // middle of each HUD line
+
+const popLine = (kind) => POP_LINE[kind] ?? 'hearts';
+const smooth = (f) => f * f * (3 - 2 * f);
+
+// 0..1..0 while a popup that landed on this HUD line pulses it
+function hudPulse(state, line) {
+  let k = 0;
+  for (const q of state.popups) {
+    const f = (q.t - POP_HOLD - POP_FLY) / (POPUP_LIFE - POP_HOLD - POP_FLY);
+    if (popLine(q.kind) === line && f > 0) k = Math.max(k, Math.sin(Math.PI * Math.min(1, f)));
+  }
+  return k;
+}
+
+// Scales what draw() paints around the start of a HUD line.
+function pulsing(ctx, state, line, draw) {
+  const s = 1 + 0.35 * hudPulse(state, line);
+  ctx.save();
+  ctx.translate(14, HUD_Y[line]);
+  ctx.scale(s, s);
+  ctx.translate(-14, -HUD_Y[line]);
+  draw();
+  ctx.restore();
+}
+
+function drawPopups(ctx, state) {
+  const p = state.player;
+  for (const q of state.popups) {
+    if (q.t >= POP_HOLD + POP_FLY) continue;
+    let x = p.x + p.w / 2 - Math.round(state.camX);
+    let y = p.y + VIEW_H - state.level.rows * TILE - 84 - Math.min(q.t, POP_HOLD) * 20;
+    let k = Math.min(1, q.t / 0.12);
+    if (q.t > POP_HOLD) {
+      const f = smooth((q.t - POP_HOLD) / POP_FLY);
+      const tx = popLine(q.kind) === 'hearts' ? 24 + Math.max(0, p.hp - 1) * 22 : 60;
+      x += (tx - x) * f;
+      y += (HUD_Y[popLine(q.kind)] - y) * f;
+      k = 1 - 0.5 * f;
+    }
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(k, k);
+    drawSprite(ctx, 'items', itemFrame(q.kind));
+    label(ctx, t(POP_TEXT[q.kind]), 0, -22, 16, 'center', '#ffe082');
+    ctx.restore();
+  }
+}
+
 function drawHud(ctx, state) {
   const p = state.player;
-  for (let i = 0; i < p.maxHp; i++) heart(ctx, 24 + i * 22, 12, i < p.hp);
+  pulsing(ctx, state, 'hearts', () => {
+    for (let i = 0; i < p.maxHp; i++) heart(ctx, 24 + i * 22, 12, i < p.hp);
+  });
   const ammo = p.buffs.lighter > 0 ? '∞' : String(p.ammo);
-  label(ctx, t('matches', { n: ammo }), 14, 56);
-  let y = 80;
-  for (const [k, key] of Object.entries(BUFF_LABELS)) {
-    if (p.buffs[k] > 0) {
-      label(ctx, `${t(key)}: ${t('seconds', { n: Math.ceil(p.buffs[k]) })}`, 14, y, 15, 'left', '#ffe082');
-      y += 20;
+  pulsing(ctx, state, 'ammo', () => label(ctx, t('matches', { n: ammo }), 14, 56));
+  pulsing(ctx, state, 'buffs', () => {
+    let y = 80;
+    for (const [k, key] of Object.entries(BUFF_LABELS)) {
+      if (p.buffs[k] > 0) {
+        label(ctx, `${t(key)}: ${t('seconds', { n: Math.ceil(p.buffs[k]) })}`, 14, y, 15, 'left', '#ffe082');
+        y += 20;
+      }
     }
-  }
+  });
   const lvl = state.levels[state.levelIndex];
   const levelName = t(`level${state.levelIndex}`);
   label(ctx, t('levelLabel', { n: state.levelIndex + 1, level: levelName }), VIEW_W - 14, 28, 18, 'right');
@@ -328,23 +386,21 @@ export function drawGame(ctx, state, head, name) {
   drawShots(ctx, state);
 
   const dead = state.mode === 'dead';
-  const blink = !dead && p.invuln > 0 && Math.floor(state.time * 12) % 2;
-  if (!blink) {
-    if (!dead && p.buffs.whiskey > 0) {
-      ctx.beginPath();
-      ctx.ellipse(p.x + p.w / 2, p.y, 40, 60, 0, 0, Math.PI * 2);
-      ctx.fillStyle = `hsla(${(state.time * 300) % 360}, 90%, 60%, 0.3)`;
-      ctx.fill();
-    }
-    drawCharacter(ctx, p.x, p.y, p.facing, p.walk, head, {
-      moving: !dead && p.onGround && p.vx !== 0,
-      airborne: !dead && !p.onGround,
-      rising: p.vy < 0,
-      hurt: !dead && p.knock > 0,
-      throwing: !dead && p.fireCd > 0.1,
-      lying: dead ? Math.min(1, state.deadT / 0.35) : 0,
-    });
+  if (!dead && p.buffs.whiskey > 0) {
+    ctx.beginPath();
+    ctx.ellipse(p.x + p.w / 2, p.y, 40, 60, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${(state.time * 300) % 360}, 90%, 60%, 0.3)`;
+    ctx.fill();
   }
+  // whole px like the camera, or the hero wobbles by a fraction of a pixel while it follows him
+  drawCharacter(ctx, Math.round(p.x), p.y, p.facing, p.walk, head, {
+    moving: !dead && p.onGround && p.vx !== 0,
+    airborne: !dead && !p.onGround,
+    rising: p.vy < 0,
+    hurt: !dead && p.knock > 0,
+    throwing: !dead && p.fireCd > 0.1,
+    lying: dead ? Math.min(1, state.deadT / 0.35) : 0,
+  });
   if (dead && state.deathCause === 'hp' && head?.img && state.deadT > 0.3) {
     // the soul leaves the body
     const t = state.deadT - 0.3;
@@ -363,6 +419,7 @@ export function drawGame(ctx, state, head, name) {
   ctx.restore();
 
   drawHud(ctx, state);
+  drawPopups(ctx, state);
   if (dead) {
     ctx.fillStyle = `rgba(40, 0, 0, ${Math.min(0.55, state.deadT * 0.6)})`;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);

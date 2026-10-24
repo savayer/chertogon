@@ -115,6 +115,19 @@ test('matches give ammo, touching a pickup collects it', () => {
   assert.equal(s2.pickups.length, 0);
 });
 
+test('a collected pickup shows a popup of what it gave, which then expires', () => {
+  const s = game([
+    '..........',
+    '..........',
+    '.P.c......',
+    '##########',
+  ]);
+  run(s, { ...IDLE, right: true }, 0.5);
+  assert.deepEqual(s.popups.map((q) => q.kind), ['c']);
+  run(s, IDLE, 2);
+  assert.equal(s.popups.length, 0);
+});
+
 test('firing spends a match, no ammo means no shot, lighter is free', () => {
   const s = game(FLAT);
   run(s, IDLE, 0.5);
