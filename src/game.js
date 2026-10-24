@@ -17,9 +17,9 @@ const SPIT_EVERY = 2.2;
 
 // Display names: i18n keys boss0..boss2.
 export const BOSSES = [
-  { hp: 10, speed: 90, jumpEvery: 2.5, shootEvery: 0, spread: 1, color: '#b3261e' },
-  { hp: 16, speed: 70, jumpEvery: 4, shootEvery: 2, spread: 1, color: '#6a1b9a' },
-  { hp: 24, speed: 110, jumpEvery: 2.2, shootEvery: 1.6, spread: 3, color: '#212121' },
+  { hp: 10, speed: 90, jumpEvery: 2.5, shootEvery: 0, spread: 1 },
+  { hp: 16, speed: 70, jumpEvery: 4, shootEvery: 2, spread: 1 },
+  { hp: 24, speed: 110, jumpEvery: 2.2, shootEvery: 1.6, spread: 3 },
 ];
 
 const PICKUPS = 'mlcvhbw';

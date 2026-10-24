@@ -8,3 +8,6 @@ node_modules/
 .env*
 .idea/
 vo-samples/
+# Raw ChatGPT sprite sheets: the game loads the sliced copies made by docs/slice-sprites.py
+assets/* *.png
+assets/sprites/* *.png

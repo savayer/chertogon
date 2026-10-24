@@ -1,12 +1,9 @@
 import { TILE, VIEW_W, VIEW_H } from './game.js';
 import { HEAD_W, HEAD_H, CHIN_Y } from './face-math.js';
 import { t } from './i18n.js';
+import { drawSprite, heroFrame, heroChin, itemFrame } from './sprites.js';
 
-const HEAD_SCALE = 0.325; // head image px -> world px
-const SUIT = '#2f4d40';
-const SUIT_DARK = '#203a30';
-const SHIRT = '#9fb8b2';
-const SKIN = '#f3d9c0';
+const HEAD_SCALE = 0.3; // head image px -> world px
 const INK = '#111';
 
 const BUFF_LABELS = {
@@ -27,11 +24,6 @@ const hash = (n) => {
   const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
 };
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, r);
-}
 
 function fillStroke(ctx, fill, stroke = INK, lw = 2) {
   ctx.fillStyle = fill;
@@ -136,269 +128,74 @@ function drawTiles(ctx, state) {
 // head = { img, dir }: dir -1 means the photo looks left, so it is mirrored to look where the body goes.
 // opts.lying 0..1 tips the body over backwards around the feet.
 export function drawCharacter(ctx, x, y, facing, walk, head, opts = {}) {
-  const swing = Math.sin(walk * 0.09) * (opts.moving ? 0.6 : 0);
-  const bob = opts.moving ? -Math.abs(Math.sin(walk * 0.09)) * 2 : 0;
+  const frame = heroFrame(opts, walk);
   ctx.save();
-  ctx.translate(x + 14, y + bob);
+  ctx.translate(x + 14, y + 56); // feet: bottom middle of the 28x56 hitbox
   if (opts.lying) {
-    ctx.translate(0, 56 - 14 * opts.lying);
+    ctx.translate(0, -14 * opts.lying);
     ctx.rotate(-facing * (Math.PI / 2) * opts.lying);
-    ctx.translate(0, -56);
   }
   ctx.scale(facing < 0 ? -1 : 1, 1);
-
-  const leg = (angle, shade) => {
-    ctx.save();
-    ctx.translate(0, 38);
-    ctx.rotate(angle);
-    roundRect(ctx, -6, 0, 12, 16, 3);
-    fillStroke(ctx, shade);
-    roundRect(ctx, -6, 13, 15, 6, 3);
-    fillStroke(ctx, '#1b1b1b');
-    ctx.restore();
-  };
-  leg(-swing, SUIT_DARK);
-
-  // back arm
-  ctx.save();
-  ctx.translate(-8, 22);
-  ctx.rotate(swing * 0.8);
-  roundRect(ctx, -4, 0, 8, 16, 3);
-  fillStroke(ctx, SUIT_DARK);
-  ctx.restore();
-
-  leg(swing, SUIT);
-
-  roundRect(ctx, -13, 17, 26, 26, 5);
-  fillStroke(ctx, SUIT);
-  ctx.fillStyle = SHIRT;
-  ctx.fillRect(-4, 19, 8, 22);
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(-4, 19);
-  ctx.lineTo(0, 30);
-  ctx.lineTo(4, 19);
-  ctx.stroke();
-
-  // front arm: forward when throwing
-  ctx.save();
-  ctx.translate(8, 22);
-  ctx.rotate(opts.throwing ? -1.4 : -swing * 0.8);
-  roundRect(ctx, -4, 0, 8, 16, 3);
-  fillStroke(ctx, SUIT);
-  ctx.beginPath();
-  ctx.arc(0, 18, 5, 0, Math.PI * 2);
-  fillStroke(ctx, SKIN);
-  ctx.restore();
-
+  drawSprite(ctx, 'hero', frame);
   if (head?.img) {
+    ctx.translate(...heroChin(frame));
     if (head.dir < 0) ctx.scale(-1, 1);
     ctx.imageSmoothingEnabled = head.style !== 'pixel';
-    ctx.drawImage(head.img, (-HEAD_W * HEAD_SCALE) / 2, 22 - CHIN_Y * HEAD_SCALE, HEAD_W * HEAD_SCALE, HEAD_H * HEAD_SCALE);
+    ctx.drawImage(head.img, (-HEAD_W * HEAD_SCALE) / 2, -CHIN_Y * HEAD_SCALE, HEAD_W * HEAD_SCALE, HEAD_H * HEAD_SCALE);
   }
   ctx.restore();
 }
 
+// Imp frames: 4-step walk; the fire imp has 2 walk frames and 2 spitting ones.
 function drawDemon(ctx, e, time) {
   const dir = e.hold ? e.aim : e.vx > 0 ? 1 : -1;
-  const step = Math.sin(time * 12 + e.x * 0.1) * 3;
-  ctx.save();
-  ctx.translate(e.x + e.w / 2, e.y);
-  ctx.scale(dir, 1);
-  ctx.fillStyle = '#7f0000';
-  ctx.fillRect(-10, 24 + step * 0.3, 6, 8);
-  ctx.fillRect(4, 24 - step * 0.3, 6, 8);
-  ctx.beginPath();
-  ctx.moveTo(-12, 18);
-  ctx.quadraticCurveTo(-26, 14, -22, 4);
-  ctx.strokeStyle = '#b71c1c';
-  ctx.lineWidth = 3;
-  ctx.stroke();
-  roundRect(ctx, -14, 4, 28, 24, 10);
-  fillStroke(ctx, e.shooter ? '#ef6c00' : '#d32f2f');
-  hornsAndFace(ctx, 0, 4, 1);
-  if (e.shooter && e.hold && e.shootT < 0.45) {
-    // wind-up glow so the player sees the flame coming
-    ctx.beginPath();
-    ctx.arc(8, 21, 3 + (0.45 - e.shootT) * 14, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255, 213, 79, 0.85)';
-    ctx.fill();
+  let frame = Math.floor(time * 8) % 4;
+  if (e.shooter) {
+    // mouth opens on the wind-up so the player sees the flame coming
+    if (e.hold) frame = e.shootT < 0.45 ? 2 + (Math.floor(time * 10) % 2) : 0;
+    else frame = Math.floor(time * 6) % 2;
   }
+  ctx.save();
+  ctx.translate(e.x + e.w / 2, e.y + e.h);
+  ctx.scale(dir, 1);
+  drawSprite(ctx, e.shooter ? 'fire-imp' : 'imp', frame);
   ctx.restore();
 }
 
-function hornsAndFace(ctx, x, y, k) {
-  ctx.fillStyle = '#fff8e1';
-  for (const s of [-1, 1]) {
-    ctx.beginPath();
-    ctx.moveTo(x + s * 6 * k, y + 2 * k);
-    ctx.lineTo(x + s * 12 * k, y - 10 * k);
-    ctx.lineTo(x + s * 12 * k, y + 4 * k);
-    ctx.closePath();
-    fillStroke(ctx, '#fff8e1', INK, 1.5);
-    ctx.beginPath();
-    ctx.arc(x + s * 5 * k + 2 * k, y + 10 * k, 3.5 * k, 0, Math.PI * 2);
-    fillStroke(ctx, '#ffeb3b', INK, 1);
-    ctx.fillStyle = INK;
-    ctx.fillRect(x + s * 5 * k + 2 * k - 1 * k, y + 9 * k, 2 * k, 3 * k);
-  }
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = 2 * Math.min(k, 2);
-  ctx.beginPath();
-  ctx.moveTo(x - 1 * k, y + 5 * k);
-  ctx.lineTo(x + 9 * k, y + 7 * k);
-  ctx.moveTo(x + 1 * k, y + 5 * k);
-  ctx.lineTo(x - 7 * k, y + 7 * k);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(x - 4 * k, y + 17 * k);
-  ctx.lineTo(x + 6 * k, y + 17 * k);
-  ctx.stroke();
-}
-
-function drawFlyer(ctx, e, time) {
-  const flap = Math.sin(time * 20 + e.phase) * 8;
+// The bat's anchor is its eyes; they sit ahead of the body's center, so it faces the player.
+function drawFlyer(ctx, e, time, playerX) {
+  const dir = playerX < e.x + e.w / 2 ? -1 : 1;
   ctx.save();
   ctx.translate(e.x + e.w / 2, e.y + e.h / 2);
-  ctx.fillStyle = '#4a148c';
-  for (const s of [-1, 1]) {
-    ctx.beginPath();
-    ctx.moveTo(s * 8, -2);
-    ctx.lineTo(s * 26, -10 - flap);
-    ctx.lineTo(s * 20, 4);
-    ctx.lineTo(s * 14, 0);
-    ctx.lineTo(s * 8, 8);
-    ctx.closePath();
-    fillStroke(ctx, '#6a1b9a', INK, 1.5);
-  }
-  ctx.beginPath();
-  ctx.ellipse(0, 2, 12, 12, 0, 0, Math.PI * 2);
-  fillStroke(ctx, '#8e24aa');
-  hornsAndFace(ctx, 0, -8, 0.8);
+  ctx.scale(dir, 1);
+  ctx.translate(6, 0);
+  drawSprite(ctx, 'bat', Math.floor(time * 12 + e.phase) % 4);
   ctx.restore();
 }
 
-function drawBoss(ctx, b, time) {
+// Boss frames: 0-1 walk, 2 jump, 3 hurt (boss 0, who doesn't shoot) or shooting (bosses 1 and 2).
+function drawBoss(ctx, b, index, time) {
+  let frame = !b.onGround ? 2 : b.vx ? Math.floor(time * 5) % 2 : 0;
+  if (index === 0 ? b.hurt > 0 : b.active && b.shootEvery - b.shootT < 0.3) frame = 3;
   ctx.save();
-  ctx.translate(b.x + b.w / 2, b.y);
+  ctx.translate(b.x + b.w / 2, b.y + b.h);
   ctx.scale(b.facing, 1);
-  const color = b.hurt > 0 && Math.floor(time * 30) % 2 ? '#ffffff' : b.color;
-  const step = b.onGround && b.vx ? Math.sin(time * 10) * 6 : 0;
-  ctx.fillStyle = INK;
-  ctx.fillRect(-32, 74 + step * 0.3, 20, 22);
-  ctx.fillRect(12, 74 - step * 0.3, 20, 22);
-  ctx.beginPath();
-  ctx.moveTo(-40, 60);
-  ctx.quadraticCurveTo(-80, 50, -66, 20);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 6;
-  ctx.stroke();
-  roundRect(ctx, -44, 14, 88, 66, 26);
-  fillStroke(ctx, color, INK, 3);
-  hornsAndFace(ctx, 0, 14, 3);
+  if (b.hurt > 0 && Math.floor(time * 30) % 2) ctx.globalAlpha = 0.5;
+  drawSprite(ctx, `boss${index}`, frame);
   ctx.restore();
 }
 
 function drawPickup(ctx, k, time) {
   const y = k.y + Math.sin(time * 4 + k.x) * 3;
-  const cx = k.x + k.w / 2;
   ctx.save();
-  ctx.translate(cx, y + k.h / 2);
+  ctx.translate(k.x + k.w / 2, y + k.h / 2);
   ctx.globalAlpha = 0.35;
   ctx.beginPath();
   ctx.arc(0, 0, 18, 0, Math.PI * 2);
   ctx.fillStyle = '#fff59d';
   ctx.fill();
   ctx.globalAlpha = 1;
-  switch (k.kind) {
-    case 'm': // matchbox
-      ctx.fillStyle = '#ffcc80';
-      ctx.fillRect(-4, -14, 2, 10);
-      ctx.fillRect(2, -16, 2, 12);
-      ctx.fillStyle = '#d50000';
-      ctx.fillRect(-5, -16, 4, 4);
-      ctx.fillRect(1, -18, 4, 4);
-      roundRect(ctx, -11, -6, 22, 16, 2);
-      fillStroke(ctx, '#c62828');
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 7px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(t('matchbox'), 0, 4, 20);
-      break;
-    case 'l': // lighter
-      roundRect(ctx, -7, -6, 14, 20, 3);
-      fillStroke(ctx, '#1e88e5');
-      roundRect(ctx, -7, -12, 14, 7, 2);
-      fillStroke(ctx, '#bdbdbd');
-      ctx.beginPath();
-      ctx.moveTo(0, -24);
-      ctx.quadraticCurveTo(6, -16, 0, -13);
-      ctx.quadraticCurveTo(-6, -16, 0, -24);
-      fillStroke(ctx, '#ffab00', '#e65100', 1);
-      break;
-    case 'c': // cigarette
-      ctx.rotate(-0.5);
-      roundRect(ctx, -14, -3, 28, 7, 2);
-      fillStroke(ctx, '#fafafa');
-      ctx.fillStyle = '#ef9a3c';
-      ctx.fillRect(6, -2, 7, 5);
-      ctx.fillStyle = '#ff3d00';
-      ctx.fillRect(-14, -2, 3, 5);
-      ctx.strokeStyle = 'rgba(220,220,220,0.8)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(-15, -4);
-      ctx.quadraticCurveTo(-22, -12, -16, -18);
-      ctx.stroke();
-      break;
-    case 'v': // vape (the green one from the concept video)
-      roundRect(ctx, -5, -10, 10, 26, 3);
-      fillStroke(ctx, '#7cc242');
-      roundRect(ctx, -5, -16, 10, 7, 3);
-      fillStroke(ctx, '#212121');
-      ctx.fillStyle = '#dcedc8';
-      ctx.fillRect(-1, -6, 2, 16);
-      break;
-    case 'h': // hookah
-      ctx.beginPath();
-      ctx.ellipse(0, 10, 9, 7, 0, 0, Math.PI * 2);
-      fillStroke(ctx, '#26c6da');
-      ctx.fillStyle = '#9e9e9e';
-      ctx.fillRect(-2, -12, 4, 16);
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(-2, -12, 4, 16);
-      roundRect(ctx, -6, -18, 12, 6, 2);
-      fillStroke(ctx, '#ff7043');
-      ctx.strokeStyle = '#6d4c41';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(2, 0);
-      ctx.quadraticCurveTo(18, 0, 14, 16);
-      ctx.stroke();
-      break;
-    case 'b': // beer mug
-      roundRect(ctx, -9, -8, 16, 22, 3);
-      fillStroke(ctx, '#ffb300');
-      ctx.beginPath();
-      ctx.arc(7, 3, 5, -Math.PI / 2, Math.PI / 2);
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.ellipse(-1, -9, 10, 5, 0, 0, Math.PI * 2);
-      fillStroke(ctx, '#fffde7', INK, 1.5);
-      break;
-    case 'w': // whiskey glass
-      roundRect(ctx, -10, -6, 20, 18, 2);
-      fillStroke(ctx, 'rgba(225,245,254,0.7)');
-      ctx.fillStyle = '#e65100';
-      ctx.fillRect(-8, 2, 16, 8);
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      ctx.fillRect(-4, -1, 7, 6);
-      break;
-  }
+  drawSprite(ctx, 'items', itemFrame(k.kind));
   ctx.restore();
 }
 
@@ -523,8 +320,11 @@ export function drawGame(ctx, state, head, name) {
   drawTiles(ctx, state);
   drawCheckpoints(ctx, state);
   for (const k of state.pickups) drawPickup(ctx, k, state.time);
-  for (const e of state.enemies) (e.type === 'flyer' ? drawFlyer : drawDemon)(ctx, e, state.time);
-  if (state.boss) drawBoss(ctx, state.boss, state.time);
+  for (const e of state.enemies) {
+    if (e.type === 'flyer') drawFlyer(ctx, e, state.time, p.x + p.w / 2);
+    else drawDemon(ctx, e, state.time);
+  }
+  if (state.boss) drawBoss(ctx, state.boss, lvl.boss ?? 0, state.time);
   drawShots(ctx, state);
 
   const dead = state.mode === 'dead';
@@ -532,12 +332,15 @@ export function drawGame(ctx, state, head, name) {
   if (!blink) {
     if (!dead && p.buffs.whiskey > 0) {
       ctx.beginPath();
-      ctx.ellipse(p.x + p.w / 2, p.y + 10, 40, 56, 0, 0, Math.PI * 2);
+      ctx.ellipse(p.x + p.w / 2, p.y, 40, 60, 0, 0, Math.PI * 2);
       ctx.fillStyle = `hsla(${(state.time * 300) % 360}, 90%, 60%, 0.3)`;
       ctx.fill();
     }
     drawCharacter(ctx, p.x, p.y, p.facing, p.walk, head, {
       moving: !dead && p.onGround && p.vx !== 0,
+      airborne: !dead && !p.onGround,
+      rising: p.vy < 0,
+      hurt: !dead && p.knock > 0,
       throwing: !dead && p.fireCd > 0.1,
       lying: dead ? Math.min(1, state.deadT / 0.35) : 0,
     });
@@ -547,7 +350,7 @@ export function drawGame(ctx, state, head, name) {
     const t = state.deadT - 0.3;
     ctx.globalAlpha = Math.max(0, 0.6 - t * 0.35);
     const w = HEAD_W * HEAD_SCALE;
-    ctx.drawImage(head.img, p.x + p.w / 2 - w / 2, p.y - 40 - t * 50 + Math.sin(t * 4) * 4, w, HEAD_H * HEAD_SCALE);
+    ctx.drawImage(head.img, p.x + p.w / 2 - w / 2, p.y - 50 - t * 50 + Math.sin(t * 4) * 4, w, HEAD_H * HEAD_SCALE);
     ctx.globalAlpha = 1;
   }
   for (const q of state.particles) {

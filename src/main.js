@@ -1,5 +1,6 @@
 import { createGame, loadLevel, nextLevel, respawn, step, musicCue, VIEW_W, VIEW_H } from './game.js';
 import { drawGame, drawCharacter } from './render.js';
+import { loadSprites } from './sprites.js';
 import { t, setLang, getLang } from './i18n.js';
 import { unlockAudio, play, isMuted, setMuted, setMusic, pauseAudio } from './sfx.js';
 import { loadImage, detectFace, fallbackEyes, cutHead, frameHead, stylizeHead, saveHead, clearHead, loadHead } from './face.js';
@@ -270,5 +271,6 @@ try {
 }
 applyLang(savedLang || (navigator.language.toLowerCase().startsWith('ru') ? 'ru' : 'en'));
 resize();
+loadSprites();
 loadHead().then((h) => { head = h; }).catch((e) => console.error('no head image', e));
 requestAnimationFrame(frame);
