@@ -52,6 +52,13 @@
     .card.death p { margin: 0; color: var(--muted); }
     .card.death .row { width: 100%; }
     .help b { color: var(--text); }
+    #ready-dialog { max-width: 520px; width: calc(100% - 32px); background: var(--card); color: var(--text); border: 0; border-radius: 18px; padding: 20px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+    #ready-dialog::backdrop { background: rgba(10, 5, 16, 0.7); }
+    #ready-dialog h2 { margin: 0 0 4px; font-size: 20px; color: var(--accent); }
+    #ready-dialog ol { margin: 8px 0; padding-left: 22px; font-size: 14px; line-height: 1.5; }
+    #ready-dialog a { color: var(--accent); }
+    #ready-prompt { display: block; width: 100%; margin-bottom: 8px; font: inherit; font-size: 13px; color: var(--text); background: #1a1126; border: 2px solid #3b2a52; border-radius: 10px; padding: 8px 10px; resize: vertical; user-select: text; -webkit-user-select: text; }
+    #ready-status { min-height: 1.3em; margin-bottom: 8px; color: #ff8a65; font-size: 14px; }
     .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
     .touch { display: none; position: fixed; inset: auto 0 0 0; padding: 12px max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); justify-content: space-between; pointer-events: none; }
@@ -94,6 +101,14 @@
             <button id="sound" data-i18n-aria="sound" aria-label="Звук" aria-pressed="true">🔊</button>
           </div>
         </div>
+        <div class="field">
+          <span data-i18n="character">Персонаж</span>
+          <div class="seg" role="group" data-i18n-aria="character" aria-label="Персонаж">
+            <button data-hero="ilka" data-i18n="heroIlka" aria-pressed="true">Илька</button>
+            <button data-hero="yurok" data-i18n="heroYurok" aria-pressed="false">Юрок</button>
+            <button data-hero="chen" data-i18n="heroChen" aria-pressed="false">Чен</button>
+          </div>
+        </div>
         <div class="row">
           <button class="btn" id="play" data-i18n="play">▶ Играть</button>
           <button class="btn green" id="continue" data-i18n="continue" hidden>Продолжить</button>
@@ -103,6 +118,7 @@
             <span data-i18n="yourFace">📷 Своё лицо</span>
             <input class="visually-hidden" type="file" id="photo" accept="image/*">
           </label>
+          <button class="btn secondary" id="ready-open" data-i18n="readyHead">🎨 Готовая голова</button>
           <button class="btn secondary" id="reset" data-i18n="reset">Сбросить</button>
         </div>
         <div id="status" role="status">Загрузи фото, и лицо встанет на тело само.</div>
@@ -124,6 +140,27 @@
       </div>
     </div>
   </div>
+
+  <dialog id="ready-dialog" aria-labelledby="ready-title">
+    <h2 id="ready-title" data-i18n="readyTitle">Своя голова из ChatGPT</h2>
+    <ol>
+      <li data-i18n-html="readyStep1">Скачай <a href="assets/sprites/style-sample.png" download="chertogon-style.png">образец стиля</a>.</li>
+      <li data-i18n="readyStep2">Открой ChatGPT, приложи своё фото и образец, вставь этот текст:</li>
+    </ol>
+    <textarea id="ready-prompt" readonly rows="7" data-i18n="readyPrompt"></textarea>
+    <button class="btn secondary" id="ready-copy" data-i18n="readyCopy">📋 Скопировать текст</button>
+    <ol start="3">
+      <li data-i18n="readyStep3">Скачай картинку, которую нарисует ChatGPT, и загрузи её сюда. Пурпурный фон вырежется сам.</li>
+    </ol>
+    <div id="ready-status" role="status"></div>
+    <div class="row">
+      <label class="btn" id="ready-label">
+        <span data-i18n="readyUpload">Загрузить картинку</span>
+        <input class="visually-hidden" type="file" id="ready-head" accept="image/*">
+      </label>
+      <button class="btn secondary" id="ready-close" data-i18n="close">Закрыть</button>
+    </div>
+  </dialog>
 
   <div id="death" hidden>
     <div class="card death" role="dialog" aria-labelledby="death-title">

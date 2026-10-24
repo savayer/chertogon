@@ -3,7 +3,7 @@ import { drawGame, drawCharacter } from './render.js';
 import { loadSprites } from './sprites.js';
 import { t, setLang, getLang } from './i18n.js';
 import { unlockAudio, play, isMuted, setMuted, setMusic, pauseAudio } from './sfx.js';
-import { loadImage, detectFace, fallbackEyes, cutHead, frameHead, stylizeHead, saveHead, clearHead, loadHead } from './face.js';
+import { loadImage, detectFace, fallbackEyes, cutHead, frameHead, stylizeHead, saveHead, clearHead, loadHead, readyHead, characterHead, CHARACTERS } from './face.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -16,12 +16,14 @@ let state = createGame();
 loadLevel(state, 0);
 let started = false;
 let screen = 'menu';
-let head = null; // { img, dir }
+let head = null; // { img, dir, style, hurt?, dead?, character? }
+let hero = CHARACTERS[0]; // whose head is worn when none is uploaded
 let photo = null; // last uploaded { cut, dir }, kept in memory for the sliders and style only
 let faceStyle = 'cartoon'; // style for the next upload
 const NAME_KEY = 'chertogon.name';
 const LANG_KEY = 'chertogon.lang';
 const MUTE_KEY = 'chertogon.mute';
+const HERO_KEY = 'chertogon.hero';
 let name = '';
 let statusKey = 'statusIdle';
 
@@ -162,6 +164,29 @@ function setStatus(key) {
 function busy(on) {
   for (const id of ['play', 'continue', 'reset']) $(id).disabled = on;
   $('photo').disabled = on;
+  $('ready-head').disabled = on;
+  for (const b of document.querySelectorAll('[data-hero]')) b.disabled = on;
+}
+
+function setHead(h) {
+  head = h;
+  for (const b of document.querySelectorAll('[data-hero]')) b.setAttribute('aria-pressed', String(b.dataset.hero === h?.character));
+}
+
+for (const b of document.querySelectorAll('[data-hero]')) {
+  b.addEventListener('click', async () => {
+    hero = b.dataset.hero;
+    store(HERO_KEY, hero);
+    clearHead();
+    photo = null;
+    $('adjust').hidden = true;
+    busy(true);
+    try {
+      setHead(await characterHead(hero));
+    } finally {
+      busy(false);
+    }
+  });
 }
 
 const sliders = () => ({ zoom: +$('zoom').value, dx: +$('dx').value, dy: +$('dy').value });
@@ -176,7 +201,7 @@ for (const b of document.querySelectorAll('[data-style]')) {
     faceStyle = b.dataset.style;
     showStyle();
     if (!photo) return;
-    head = buildHead();
+    setHead(buildHead());
     saveHead(head);
   });
 }
@@ -198,7 +223,7 @@ $('photo').addEventListener('change', async (e) => {
     const { cut, segmented, dir } = await cutHead(img, face || fallbackEyes(img));
     photo = { cut, dir };
     for (const [id, v] of [['zoom', 1], ['dx', 0], ['dy', 0]]) $(id).value = v;
-    head = buildHead();
+    setHead(buildHead());
     saveHead(head);
     $('adjust').hidden = false;
     if (!segmented) setStatus('statusOval');
@@ -212,9 +237,49 @@ $('photo').addEventListener('change', async (e) => {
   }
 });
 
+$('ready-open').addEventListener('click', () => {
+  $('ready-status').textContent = '';
+  $('ready-copy').textContent = t('readyCopy');
+  $('ready-dialog').showModal();
+});
+$('ready-close').addEventListener('click', () => $('ready-dialog').close());
+$('ready-copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('ready-prompt').value);
+    $('ready-copy').textContent = t('readyCopied');
+  } catch {
+    $('ready-prompt').select(); // no clipboard access: let the player copy it by hand
+  }
+});
+
+$('ready-head').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  busy(true);
+  try {
+    const ready = await readyHead(file);
+    if (!ready) {
+      $('ready-status').textContent = t('statusNoAlpha');
+      return;
+    }
+    setHead(ready);
+    photo = null;
+    $('adjust').hidden = true;
+    saveHead(head);
+    $('ready-dialog').close();
+    setStatus('statusReady');
+  } catch (err) {
+    console.error(err);
+    $('ready-status').textContent = t('statusBadPhoto');
+  } finally {
+    busy(false);
+  }
+});
+
 for (const id of ['zoom', 'dx', 'dy']) {
   $(id).addEventListener('input', () => {
-    if (photo) head = buildHead();
+    if (photo) setHead(buildHead());
   });
   $(id).addEventListener('change', () => {
     if (photo) saveHead(head);
@@ -225,7 +290,12 @@ $('reset').addEventListener('click', async () => {
   clearHead();
   photo = null;
   $('adjust').hidden = true;
-  head = await loadHead();
+  busy(true);
+  try {
+    setHead(await loadHead(hero));
+  } finally {
+    busy(false);
+  }
   setStatus('statusReset');
 });
 
@@ -266,11 +336,12 @@ try {
   $('name').value = localStorage.getItem(NAME_KEY) || '';
   savedLang = localStorage.getItem(LANG_KEY);
   if (localStorage.getItem(MUTE_KEY)) toggleSound();
+  if (CHARACTERS.includes(localStorage.getItem(HERO_KEY))) hero = localStorage.getItem(HERO_KEY);
 } catch {
   // storage blocked: defaults
 }
 applyLang(savedLang || (navigator.language.toLowerCase().startsWith('ru') ? 'ru' : 'en'));
 resize();
 loadSprites();
-loadHead().then((h) => { head = h; }).catch((e) => console.error('no head image', e));
+loadHead(hero).then(setHead).catch((e) => console.error('no head image', e));
 requestAnimationFrame(frame);

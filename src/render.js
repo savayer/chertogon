@@ -124,6 +124,9 @@ function drawTiles(ctx, state) {
   }
 }
 
+// The default head also has hurt and dead faces; uploaded heads have one.
+export const headFor = (head, opts) => (opts.lying && head.dead) || (opts.hurt && head.hurt) || head.img;
+
 // x,y = top-left of the 28x56 hitbox. Head chin sits on the collar.
 // head = { img, dir }: dir -1 means the photo looks left, so it is mirrored to look where the body goes.
 // opts.lying 0..1 tips the body over backwards around the feet.
@@ -141,7 +144,7 @@ export function drawCharacter(ctx, x, y, facing, walk, head, opts = {}) {
     ctx.translate(...heroChin(frame));
     if (head.dir < 0) ctx.scale(-1, 1);
     ctx.imageSmoothingEnabled = head.style !== 'pixel';
-    ctx.drawImage(head.img, (-HEAD_W * HEAD_SCALE) / 2, -CHIN_Y * HEAD_SCALE, HEAD_W * HEAD_SCALE, HEAD_H * HEAD_SCALE);
+    ctx.drawImage(headFor(head, opts), (-HEAD_W * HEAD_SCALE) / 2, -CHIN_Y * HEAD_SCALE, HEAD_W * HEAD_SCALE, HEAD_H * HEAD_SCALE);
   }
   ctx.restore();
 }

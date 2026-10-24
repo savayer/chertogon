@@ -1,4 +1,5 @@
-import { HEAD_W, HEAD_H, EYE_Y, EYE_UNIT, CHIN_Y, eyeTransform, faceDirection } from './face-math.js';
+import { HEAD_W, HEAD_H, EYE_Y, EYE_UNIT, eyeTransform, faceDirection, headFit, headSheet } from './face-math.js';
+import { ATLAS } from './sprite-atlas.js';
 import { cartoon, pixelArt } from './face-style.js';
 
 const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35';
@@ -8,8 +9,9 @@ const SEG_MODEL = `${MODELS}/image_segmenter/selfie_multiclass_256x256/float32/l
 const KEY = 'chertogon.head';
 const KEY_DIR = 'chertogon.head.dir';
 const KEY_STYLE = 'chertogon.head.style';
+const KEY_FACES = { hurt: 'chertogon.head.hurt', dead: 'chertogon.head.dead' }; // extra faces of a drawn head
 const STYLES = { cartoon, pixel: pixelArt }; // 'photo' = no filter
-const DEFAULT_DIR = 1; // the drawn default head looks to the right
+const DEFAULT_DIR = 1; // character and ready-made heads look to the right
 const SS = 3; // cutout resolution multiplier, keeps detail when zooming in
 const CTX = 1.6; // how much wider than the final head the segmenter sees
 const HAIR = 1;
@@ -189,12 +191,16 @@ export function stylizeHead(src, style) {
   return out;
 }
 
-// head = { img: canvas | Image, dir, style }
+// head = { img: canvas | Image, dir, style, hurt?, dead? }
 export function saveHead(head) {
   try {
     localStorage.setItem(KEY, head.img.toDataURL('image/png'));
     localStorage.setItem(KEY_DIR, String(head.dir));
     localStorage.setItem(KEY_STYLE, head.style);
+    for (const [face, key] of Object.entries(KEY_FACES)) {
+      if (head[face]) localStorage.setItem(key, head[face].toDataURL('image/png'));
+      else localStorage.removeItem(key);
+    }
   } catch (e) {
     console.warn('could not save head', e);
   }
@@ -205,94 +211,73 @@ export function clearHead() {
     localStorage.removeItem(KEY);
     localStorage.removeItem(KEY_DIR);
     localStorage.removeItem(KEY_STYLE);
+    for (const key of Object.values(KEY_FACES)) localStorage.removeItem(key);
   } catch {
     // storage blocked: nothing to clear
   }
 }
 
-// Neutral cartoon head drawn straight into the head contract, in the body's ink style.
-function drawDefaultHead() {
-  const c = canvas(HEAD_W, HEAD_H);
-  const g = c.getContext('2d');
-  const cx = HEAD_W / 2;
-  const u = EYE_UNIT;
-  const shape = (draw, fill, lw = 4) => {
-    g.beginPath();
-    draw();
-    if (fill) {
-      g.fillStyle = fill;
-      g.fill();
-    }
-    g.lineWidth = lw;
-    g.stroke();
-  };
-  g.strokeStyle = '#111';
-  g.lineJoin = 'round';
-  g.lineCap = 'round';
+// A drawn head picture (transparent around it, hair top to chin) -> HEAD_W x HEAD_H head canvas, null if it isn't one.
+function fitHead(src) {
+  const g = src.getContext('2d');
+  const fit = headFit(g.getImageData(0, 0, src.width, src.height).data, src.width, src.height);
+  if (!fit) return null;
+  const head = canvas(HEAD_W, HEAD_H);
+  head.getContext('2d').drawImage(src, fit.x, fit.y, src.width * fit.scale, src.height * fit.scale);
+  return head;
+}
 
-  for (const side of [-1, 1]) shape(() => g.ellipse(cx + side * 1.42 * u, EYE_Y + 10, 12, 18, 0, 0, Math.PI * 2), '#f3d9c0');
-  const top = EYE_Y - 1.6 * u;
-  shape(() => g.ellipse(cx, (top + CHIN_Y) / 2, 1.45 * u, (CHIN_Y - top) / 2, 0, 0, Math.PI * 2), '#f3d9c0');
-
-  g.globalAlpha = 0.35;
-  for (const side of [-1, 1]) {
-    g.beginPath();
-    g.arc(cx + side * u, EYE_Y + 38, 10, 0, Math.PI * 2);
-    g.fillStyle = '#ef9a9a';
-    g.fill();
-  }
-  g.globalAlpha = 1;
-
-  shape(() => {
-    g.moveTo(cx - 1.5 * u, EYE_Y - 0.45 * u);
-    g.bezierCurveTo(cx - 1.6 * u, EYE_Y - 2.3 * u, cx + 1.6 * u, EYE_Y - 2.3 * u, cx + 1.5 * u, EYE_Y - 0.45 * u);
-    g.quadraticCurveTo(cx + u, EYE_Y - u, cx + 0.5 * u, EYE_Y - 0.85 * u);
-    g.quadraticCurveTo(cx, EYE_Y - 1.25 * u, cx - 0.4 * u, EYE_Y - 0.9 * u);
-    g.quadraticCurveTo(cx - u, EYE_Y - 1.2 * u, cx - 1.5 * u, EYE_Y - 0.45 * u);
-    g.closePath();
-  }, '#4e342e');
-
-  for (const side of [-1, 1]) {
-    const x = cx + side * 0.5 * u;
-    shape(() => g.ellipse(x, EYE_Y, 12, 14, 0, 0, Math.PI * 2), '#fff', 3);
-    g.beginPath();
-    g.arc(x + 4, EYE_Y + 1, 6.5, 0, Math.PI * 2);
-    g.fillStyle = '#111';
-    g.fill();
-    g.beginPath();
-    g.arc(x + 6, EYE_Y - 2, 2, 0, Math.PI * 2);
-    g.fillStyle = '#fff';
-    g.fill();
-    shape(() => {
-      g.moveTo(x - 12, EYE_Y - 25);
-      g.lineTo(x + 10, EYE_Y - 28);
-    }, null, 5);
-  }
-  shape(() => {
-    g.moveTo(cx + 6, EYE_Y + 12);
-    g.quadraticCurveTo(cx + 22, EYE_Y + 32, cx + 6, EYE_Y + 36);
-  });
-  shape(() => g.arc(cx + 6, EYE_Y + 50, 18, 0.2 * Math.PI, 0.8 * Math.PI));
+function crop(src, x, y, w, h) {
+  const c = canvas(w, h);
+  c.getContext('2d').drawImage(src, x, y, w, h, 0, 0, w, h);
   return c;
 }
 
-export async function loadHead() {
+// A ready-made head drawn in the game's style (e.g. by ChatGPT), looking right: a transparent PNG
+// or a flat magenta background, one head or a row of three (normal, hurt, dead). Null if no head is found.
+export async function readyHead(file) {
+  const src = await loadImage(file);
+  const g = src.getContext('2d');
+  const pic = g.getImageData(0, 0, src.width, src.height);
+  const spans = headSheet(pic.data, src.width, src.height);
+  g.putImageData(pic, 0, 0);
+  const [img, hurt, dead] = spans.slice(0, 3).map(([x0, x1]) => fitHead(crop(src, x0, 0, x1 - x0, src.height)));
+  return img ? { img, hurt, dead, dir: DEFAULT_DIR, style: 'sprite' } : null;
+}
+
+export const CHARACTERS = ATLAS.heads.chars; // the first is the default
+
+// A character's head from the sprite sheet, with its hurt and dead faces.
+export async function characterHead(id) {
+  const i = Math.max(0, CHARACTERS.indexOf(id));
+  const sheet = await imageFrom(ATLAS.heads.src);
+  const faces = ATLAS.heads.frames.slice(i * 3, i * 3 + 3);
+  const [img, hurt, dead] = faces.map((f) => fitHead(crop(sheet, f.x, f.y, f.w, f.h)));
+  return { img, hurt, dead, dir: DEFAULT_DIR, style: 'sprite', character: CHARACTERS[i] };
+}
+
+// The uploaded head if there is one, else the character's.
+export async function loadHead(character) {
   let saved = null;
   let dir = 0;
   let style = 'photo';
+  const faces = {};
   try {
     saved = localStorage.getItem(KEY);
     dir = Number(localStorage.getItem(KEY_DIR)) || 0;
     style = localStorage.getItem(KEY_STYLE) || style;
+    for (const [face, key] of Object.entries(KEY_FACES)) faces[face] = localStorage.getItem(key);
   } catch {
     // storage blocked: use default
   }
   if (saved) {
     try {
-      return { img: await imageFrom(saved), dir, style };
+      const head = { img: await imageFrom(saved), dir, style };
+      for (const [face, url] of Object.entries(faces)) if (url) head[face] = await imageFrom(url);
+      return head;
     } catch {
       clearHead();
     }
   }
-  return { img: drawDefaultHead(), dir: DEFAULT_DIR, style: 'cartoon' };
+  return characterHead(character);
 }

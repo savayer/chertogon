@@ -27,3 +27,8 @@ test('every hero frame has a chin above the feet, near the body axis', () => {
 test('every pickup kind has an icon frame', () => {
   for (const kind of 'mlcvhbw') assert.ok(ATLAS.items.frames[itemFrame(kind)], kind);
 });
+
+test('every character has normal, hurt and dead faces, Ilka first as the default', () => {
+  assert.deepEqual(ATLAS.heads.chars, ['ilka', 'yurok', 'chen']);
+  assert.equal(ATLAS.heads.frames.length, 3 * ATLAS.heads.chars.length);
+});
