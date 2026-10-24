@@ -1,0 +1,111 @@
+// UI strings. Every language must have the same keys (checked by test/i18n.test.js).
+// {name}-style placeholders are filled by t(key, vars).
+export const STRINGS = {
+  ru: {
+    defaultName: 'Игрок',
+    title: 'Чертогон',
+    rotate: 'Поверни телефон горизонтально — так удобнее',
+    preview: 'Превью персонажа',
+    playerName: 'Имя игрока',
+    play: '▶ Играть',
+    continue: 'Продолжить',
+    yourFace: '📷 Своё лицо',
+    reset: 'Сбросить',
+    sound: 'Звук',
+    size: 'Размер',
+    help: '<b>←/→ или A/D</b> — бег, <b>пробел/↑/W</b> — прыжок, <b>X/J/F</b> — кинуть спичку, <b>M</b> — звук, <b>Esc</b> — меню.<br>'
+      + 'Прыжок на демона тоже убивает, оранжевые черти плюются огнём. Сига, вейп, кальян, пиво и вискарь лечат и дают абилки. '
+      + 'В конце каждого уровня ждёт босс.',
+    statusIdle: 'Загрузи фото, и лицо встанет на тело само.',
+    statusSearching: 'Ищу лицо… В первый раз качаю нейросеть (~27 МБ), подожди.',
+    statusOval: 'Нейросеть не загрузилась (нет сети?), вырезал овалом. Подгони ползунками.',
+    statusNoFace: 'Лицо не нашёл — подгони ползунками.',
+    statusDone: 'Готово! Если криво — подгони ползунками.',
+    statusBadPhoto: 'Не получилось открыть фото 😕 Попробуй другое.',
+    statusReset: 'Вернул лицо по умолчанию.',
+    deathTitle: '{name} в нокауте',
+    deathPit: 'Яма оказалась глубже, чем казалось.',
+    deathHp: 'Демоны оказались сильнее. Пока что.',
+    retry: '↻ Ещё раз',
+    restart: 'Заново',
+    deathHelp: 'Ещё раз — с последнего флажка. Заново — с первого уровня. Enter — ещё раз.',
+    buffLighter: 'Зажигалка',
+    buffVape: 'Двойной прыжок',
+    buffBeer: 'Скорость',
+    buffWhiskey: 'Море по колено',
+    seconds: '{n} с',
+    matches: '🔥 Спички: {n}',
+    matchbox: 'СПИЧКИ',
+    levelLabel: 'Уровень {n}: {level}',
+    level0: 'Район',
+    level1: 'Гаражи',
+    level2: 'Преисподняя',
+    boss0: 'Чёрт из подъезда',
+    boss1: 'Демон Похмелья',
+    boss2: 'Сатана с района',
+    bossDown: 'Босс повержен!',
+    next: 'Enter / тап — дальше',
+    victory: 'Все демоны сожжены! 🔥',
+    victorySub: '{name} — легенда района. Enter / тап — в меню',
+  },
+  en: {
+    defaultName: 'Player',
+    title: 'Devil Chaser',
+    rotate: 'Turn your phone sideways — it plays better',
+    preview: 'Character preview',
+    playerName: 'Player name',
+    play: '▶ Play',
+    continue: 'Continue',
+    yourFace: '📷 Your face',
+    reset: 'Reset',
+    sound: 'Sound',
+    size: 'Size',
+    help: '<b>←/→ or A/D</b> — run, <b>Space/↑/W</b> — jump, <b>X/J/F</b> — throw a match, <b>M</b> — sound, <b>Esc</b> — menu.<br>'
+      + 'Jumping on a demon kills it too, orange devils spit fire. Cigs, vapes, hookahs, beer and whiskey heal you and give powers. '
+      + 'A boss waits at the end of every level.',
+    statusIdle: 'Upload a photo and the face lands on the body by itself.',
+    statusSearching: 'Looking for a face… First time I download the neural net (~27 MB), hang on.',
+    statusOval: "The neural net didn't load (offline?), so I cut an oval. Tweak the sliders.",
+    statusNoFace: "Couldn't find a face — tweak the sliders.",
+    statusDone: "Done! If it's off, tweak the sliders.",
+    statusBadPhoto: "Couldn't open that photo 😕 Try another one.",
+    statusReset: 'Back to the default face.',
+    deathTitle: '{name} is knocked out',
+    deathPit: 'That pit was deeper than it looked.',
+    deathHp: 'The demons were stronger. For now.',
+    retry: '↻ Try again',
+    restart: 'Start over',
+    deathHelp: 'Try again — from the last flag. Start over — from level 1. Enter — try again.',
+    buffLighter: 'Lighter',
+    buffVape: 'Double jump',
+    buffBeer: 'Speed',
+    buffWhiskey: 'Liquid courage',
+    seconds: '{n} s',
+    matches: '🔥 Matches: {n}',
+    matchbox: 'MATCHES',
+    levelLabel: 'Level {n}: {level}',
+    level0: 'The Block',
+    level1: 'The Garages',
+    level2: 'The Underworld',
+    boss0: 'Stairwell Devil',
+    boss1: 'Hangover Demon',
+    boss2: 'Satan of the Block',
+    bossDown: 'Boss down!',
+    next: 'Enter / tap — next',
+    victory: 'All demons burned! 🔥',
+    victorySub: '{name} is a legend of the block. Enter / tap — menu',
+  },
+};
+
+let lang = 'ru';
+
+export const getLang = () => lang;
+
+export function setLang(next) {
+  if (STRINGS[next]) lang = next;
+}
+
+export function t(key, vars = {}) {
+  const s = STRINGS[lang][key] ?? key;
+  return s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
+}

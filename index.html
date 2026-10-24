@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Чертогон</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      --bg: #120b1a;
+      --card: #231733;
+      --text: #f5f0ff;
+      --muted: #b9a9d0;
+      --accent: #ff7a1a;
+      --accent-2: #7cc242;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; overflow: hidden; }
+    body { user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+    #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+    #game { display: block; width: min(100vw, calc(100dvh * 960 / 544)); aspect-ratio: 960 / 544; touch-action: none; background: #000; image-rendering: auto; }
+
+    #menu { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(10, 5, 16, 0.78); overflow: auto; }
+    .card { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: center; max-width: 760px; width: 100%; background: var(--card); border-radius: 18px; padding: 20px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); margin: auto; }
+    .card h1 { width: 100%; margin: 0; text-align: center; font-size: clamp(22px, 4vw, 34px); letter-spacing: 1px; }
+    .card h1 .accent { color: var(--accent); }
+    #preview { width: 160px; height: 200px; background: radial-gradient(circle at 50% 70%, #3b2a52, #1a1126); border-radius: 14px; }
+    .side { display: flex; flex-direction: column; gap: 10px; min-width: 240px; flex: 1; max-width: 380px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 12px; padding: 12px 16px; font: inherit; font-weight: 700; font-size: 16px; color: #1a1126; background: var(--accent); cursor: pointer; }
+    .btn.secondary { background: #3b2a52; color: var(--text); }
+    .btn.green { background: var(--accent-2); }
+    .btn:disabled { opacity: 0.5; cursor: progress; }
+    .btn:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .row > * { flex: 1; }
+    #status { min-height: 1.3em; color: var(--muted); font-size: 14px; }
+    #adjust { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; font-size: 14px; color: var(--muted); }
+    #adjust input { width: 100%; accent-color: var(--accent); }
+    .help { font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .field { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
+    .field input { flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--text); background: #1a1126; border: 2px solid #3b2a52; border-radius: 10px; padding: 8px 10px; }
+    .field input:focus-visible { outline: none; border-color: var(--accent); }
+    .name-row { display: flex; gap: 8px; align-items: center; }
+    .name-row .field { flex: 1; min-width: 0; }
+    .lang { display: flex; gap: 4px; }
+    .lang button { font: inherit; font-size: 13px; font-weight: 700; padding: 8px 9px; border: 0; border-radius: 8px; background: #3b2a52; color: var(--muted); cursor: pointer; }
+    .lang button[aria-pressed="true"] { background: var(--accent); color: #1a1126; }
+    .lang button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+    #death { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .card.death { flex-direction: column; max-width: 440px; text-align: center; gap: 12px; }
+    .card.death p { margin: 0; color: var(--muted); }
+    .card.death .row { width: 100%; }
+    .help b { color: var(--text); }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+    .touch { display: none; position: fixed; inset: auto 0 0 0; padding: 12px max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); justify-content: space-between; pointer-events: none; }
+    .touch .pad { display: flex; gap: 12px; pointer-events: auto; }
+    .touch button { width: 68px; height: 68px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.16); color: #fff; font-size: 26px; touch-action: none; }
+    .touch button.on { background: rgba(255, 122, 26, 0.55); }
+    #rotate { display: none; position: fixed; top: 12px; left: 0; right: 0; text-align: center; color: var(--muted); font-size: 14px; pointer-events: none; }
+    @media (pointer: coarse) {
+      body.playing .touch { display: flex; }
+      body.playing #rotate { display: block; }
+    }
+    @media (orientation: landscape) { #rotate { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div id="wrap"><canvas id="game" width="960" height="544"></canvas></div>
+
+  <div class="touch" aria-hidden="true">
+    <div class="pad">
+      <button data-key="left">◀</button>
+      <button data-key="right">▶</button>
+    </div>
+    <div class="pad">
+      <button data-key="fire">🔥</button>
+      <button data-key="jump">⤒</button>
+    </div>
+  </div>
+  <div id="rotate" data-i18n="rotate">Поверни телефон горизонтально — так удобнее</div>
+
+  <div id="menu">
+    <div class="card">
+      <h1><span class="accent" data-i18n="title">Чертогон</span></h1>
+      <canvas id="preview" width="320" height="400" data-i18n-aria="preview" aria-label="Превью персонажа"></canvas>
+      <div class="side">
+        <div class="name-row">
+          <label class="field"><span data-i18n="playerName">Имя игрока</span> <input id="name" type="text" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Игрок"></label>
+          <div class="lang" role="group" aria-label="Language / Язык">
+            <button data-lang="ru" aria-pressed="true">RU</button>
+            <button data-lang="en" aria-pressed="false">EN</button>
+            <button id="sound" data-i18n-aria="sound" aria-label="Звук" aria-pressed="true">🔊</button>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn" id="play" data-i18n="play">▶ Играть</button>
+          <button class="btn green" id="continue" data-i18n="continue" hidden>Продолжить</button>
+        </div>
+        <div class="row">
+          <label class="btn secondary" id="upload-label">
+            <span data-i18n="yourFace">📷 Своё лицо</span>
+            <input class="visually-hidden" type="file" id="photo" accept="image/*">
+          </label>
+          <button class="btn secondary" id="reset" data-i18n="reset">Сбросить</button>
+        </div>
+        <div id="status" role="status">Загрузи фото, и лицо встанет на тело само.</div>
+        <div id="adjust" hidden>
+          <label for="zoom" data-i18n="size">Размер</label><input type="range" id="zoom" min="0.7" max="1.2" step="0.01" value="1">
+          <label for="dx">← →</label><input type="range" id="dx" min="-40" max="40" step="1" value="0">
+          <label for="dy">↑ ↓</label><input type="range" id="dy" min="-40" max="40" step="1" value="0">
+        </div>
+        <div class="help" data-i18n-html="help">
+          <b>←/→ или A/D</b> — бег, <b>пробел/↑/W</b> — прыжок, <b>X/J/F</b> — кинуть спичку, <b>M</b> — звук, <b>Esc</b> — меню.<br>
+          Прыжок на демона тоже убивает, оранжевые черти плюются огнём. Сига, вейп, кальян, пиво и вискарь лечат и дают абилки. В конце каждого уровня ждёт босс.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="death" hidden>
+    <div class="card death" role="dialog" aria-labelledby="death-title">
+      <h1 id="death-title">Игрок в нокауте</h1>
+      <p id="death-cause"></p>
+      <div class="row">
+        <button class="btn" id="retry" data-i18n="retry">↻ Ещё раз</button>
+        <button class="btn secondary" id="restart" data-i18n="restart">Заново</button>
+      </div>
+      <p class="help" data-i18n="deathHelp">Ещё раз — с последнего флажка. Заново — с первого уровня. Enter — ещё раз.</p>
+    </div>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

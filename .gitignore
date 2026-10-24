@@ -1,0 +1,10 @@
+# Not part of the published game
+*.mov
+*.mp4
+.playwright-mcp/
+docs/
+.DS_Store
+node_modules/
+.env*
+.idea/
+vo-samples/
