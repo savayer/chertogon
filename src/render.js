@@ -194,6 +194,7 @@ export function drawCharacter(ctx, x, y, facing, walk, head, opts = {}) {
 
   if (head?.img) {
     if (head.dir < 0) ctx.scale(-1, 1);
+    ctx.imageSmoothingEnabled = head.style !== 'pixel';
     ctx.drawImage(head.img, (-HEAD_W * HEAD_SCALE) / 2, 22 - CHIN_Y * HEAD_SCALE, HEAD_W * HEAD_SCALE, HEAD_H * HEAD_SCALE);
   }
   ctx.restore();

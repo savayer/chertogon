@@ -12,6 +12,10 @@ export const STRINGS = {
     yourFace: '📷 Своё лицо',
     reset: 'Сбросить',
     sound: 'Звук',
+    style: 'Стиль',
+    stylePhoto: 'Фото',
+    styleCartoon: 'Мульт',
+    stylePixel: 'Пиксели',
     size: 'Размер',
     help: '<b>←/→ или A/D</b> — бег, <b>пробел/↑/W</b> — прыжок, <b>X/J/F</b> — кинуть спичку, <b>M</b> — звук, <b>Esc</b> — меню.<br>'
       + 'Прыжок на демона тоже убивает, оранжевые черти плюются огнём. Сига, вейп, кальян, пиво и вискарь лечат и дают абилки. '
@@ -59,6 +63,10 @@ export const STRINGS = {
     yourFace: '📷 Your face',
     reset: 'Reset',
     sound: 'Sound',
+    style: 'Style',
+    stylePhoto: 'Photo',
+    styleCartoon: 'Cartoon',
+    stylePixel: 'Pixels',
     size: 'Size',
     help: '<b>←/→ or A/D</b> — run, <b>Space/↑/W</b> — jump, <b>X/J/F</b> — throw a match, <b>M</b> — sound, <b>Esc</b> — menu.<br>'
       + 'Jumping on a demon kills it too, orange devils spit fire. Cigs, vapes, hookahs, beer and whiskey heal you and give powers. '

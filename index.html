@@ -43,10 +43,10 @@
     .field input:focus-visible { outline: none; border-color: var(--accent); }
     .name-row { display: flex; gap: 8px; align-items: center; }
     .name-row .field { flex: 1; min-width: 0; }
-    .lang { display: flex; gap: 4px; }
-    .lang button { font: inherit; font-size: 13px; font-weight: 700; padding: 8px 9px; border: 0; border-radius: 8px; background: #3b2a52; color: var(--muted); cursor: pointer; }
-    .lang button[aria-pressed="true"] { background: var(--accent); color: #1a1126; }
-    .lang button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+    .lang, .seg { display: flex; gap: 4px; }
+    .lang button, .seg button { font: inherit; font-size: 13px; font-weight: 700; padding: 8px 9px; border: 0; border-radius: 8px; background: #3b2a52; color: var(--muted); cursor: pointer; }
+    .lang button[aria-pressed="true"], .seg button[aria-pressed="true"] { background: var(--accent); color: #1a1126; }
+    .lang button:focus-visible, .seg button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
     #death { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; }
     .card.death { flex-direction: column; max-width: 440px; text-align: center; gap: 12px; }
     .card.death p { margin: 0; color: var(--muted); }
@@ -107,6 +107,12 @@
         </div>
         <div id="status" role="status">Загрузи фото, и лицо встанет на тело само.</div>
         <div id="adjust" hidden>
+          <span data-i18n="style">Стиль</span>
+          <div class="seg" role="group" data-i18n-aria="style" aria-label="Стиль">
+            <button data-style="photo" data-i18n="stylePhoto" aria-pressed="false">Фото</button>
+            <button data-style="cartoon" data-i18n="styleCartoon" aria-pressed="true">Мульт</button>
+            <button data-style="pixel" data-i18n="stylePixel" aria-pressed="false">Пиксели</button>
+          </div>
           <label for="zoom" data-i18n="size">Размер</label><input type="range" id="zoom" min="0.7" max="1.2" step="0.01" value="1">
           <label for="dx">← →</label><input type="range" id="dx" min="-40" max="40" step="1" value="0">
           <label for="dy">↑ ↓</label><input type="range" id="dy" min="-40" max="40" step="1" value="0">

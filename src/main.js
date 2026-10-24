@@ -2,7 +2,7 @@ import { createGame, loadLevel, nextLevel, respawn, step, musicCue, VIEW_W, VIEW
 import { drawGame, drawCharacter } from './render.js';
 import { t, setLang, getLang } from './i18n.js';
 import { unlockAudio, play, isMuted, setMuted, setMusic, pauseAudio } from './sfx.js';
-import { loadImage, detectFace, fallbackEyes, cutHead, frameHead, saveHead, clearHead, loadHead } from './face.js';
+import { loadImage, detectFace, fallbackEyes, cutHead, frameHead, stylizeHead, saveHead, clearHead, loadHead } from './face.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -16,7 +16,8 @@ loadLevel(state, 0);
 let started = false;
 let screen = 'menu';
 let head = null; // { img, dir }
-let photo = null; // last uploaded { cut, dir }, kept in memory for the sliders only
+let photo = null; // last uploaded { cut, dir }, kept in memory for the sliders and style only
+let faceStyle = 'cartoon'; // style for the next upload
 const NAME_KEY = 'chertogon.name';
 const LANG_KEY = 'chertogon.lang';
 const MUTE_KEY = 'chertogon.mute';
@@ -163,6 +164,21 @@ function busy(on) {
 }
 
 const sliders = () => ({ zoom: +$('zoom').value, dx: +$('dx').value, dy: +$('dy').value });
+const buildHead = () => ({ img: stylizeHead(frameHead(photo.cut, sliders()), faceStyle), dir: photo.dir, style: faceStyle });
+
+function showStyle() {
+  for (const b of document.querySelectorAll('[data-style]')) b.setAttribute('aria-pressed', String(b.dataset.style === faceStyle));
+}
+
+for (const b of document.querySelectorAll('[data-style]')) {
+  b.addEventListener('click', () => {
+    faceStyle = b.dataset.style;
+    showStyle();
+    if (!photo) return;
+    head = buildHead();
+    saveHead(head);
+  });
+}
 
 $('photo').addEventListener('change', async (e) => {
   const file = e.target.files[0];
@@ -181,7 +197,7 @@ $('photo').addEventListener('change', async (e) => {
     const { cut, segmented, dir } = await cutHead(img, face || fallbackEyes(img));
     photo = { cut, dir };
     for (const [id, v] of [['zoom', 1], ['dx', 0], ['dy', 0]]) $(id).value = v;
-    head = { img: frameHead(cut, sliders()), dir };
+    head = buildHead();
     saveHead(head);
     $('adjust').hidden = false;
     if (!segmented) setStatus('statusOval');
@@ -197,7 +213,7 @@ $('photo').addEventListener('change', async (e) => {
 
 for (const id of ['zoom', 'dx', 'dy']) {
   $(id).addEventListener('input', () => {
-    if (photo) head = { img: frameHead(photo.cut, sliders()), dir: photo.dir };
+    if (photo) head = buildHead();
   });
   $(id).addEventListener('change', () => {
     if (photo) saveHead(head);

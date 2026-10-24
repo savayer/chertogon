@@ -1,4 +1,5 @@
 import { HEAD_W, HEAD_H, EYE_Y, EYE_UNIT, CHIN_Y, eyeTransform, faceDirection } from './face-math.js';
+import { cartoon, pixelArt } from './face-style.js';
 
 const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35';
 const MODELS = 'https://storage.googleapis.com/mediapipe-models';
@@ -6,6 +7,8 @@ const FACE_MODEL = `${MODELS}/face_detector/blaze_face_short_range/float16/1/bla
 const SEG_MODEL = `${MODELS}/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite`;
 const KEY = 'chertogon.head';
 const KEY_DIR = 'chertogon.head.dir';
+const KEY_STYLE = 'chertogon.head.style';
+const STYLES = { cartoon, pixel: pixelArt }; // 'photo' = no filter
 const DEFAULT_DIR = 1; // the drawn default head looks to the right
 const SS = 3; // cutout resolution multiplier, keeps detail when zooming in
 const CTX = 1.6; // how much wider than the final head the segmenter sees
@@ -176,11 +179,22 @@ export function frameHead(cut, adj = {}) {
   return head;
 }
 
-// head = { img: canvas | Image, dir }
+// style: 'photo' | 'cartoon' | 'pixel'. Returns a new canvas.
+export function stylizeHead(src, style) {
+  const filter = STYLES[style];
+  if (!filter) return src;
+  const img = filter(src.getContext('2d').getImageData(0, 0, src.width, src.height));
+  const out = canvas(img.width, img.height);
+  out.getContext('2d').putImageData(new ImageData(img.data, img.width, img.height), 0, 0);
+  return out;
+}
+
+// head = { img: canvas | Image, dir, style }
 export function saveHead(head) {
   try {
     localStorage.setItem(KEY, head.img.toDataURL('image/png'));
     localStorage.setItem(KEY_DIR, String(head.dir));
+    localStorage.setItem(KEY_STYLE, head.style);
   } catch (e) {
     console.warn('could not save head', e);
   }
@@ -190,6 +204,7 @@ export function clearHead() {
   try {
     localStorage.removeItem(KEY);
     localStorage.removeItem(KEY_DIR);
+    localStorage.removeItem(KEY_STYLE);
   } catch {
     // storage blocked: nothing to clear
   }
@@ -264,18 +279,20 @@ function drawDefaultHead() {
 export async function loadHead() {
   let saved = null;
   let dir = 0;
+  let style = 'photo';
   try {
     saved = localStorage.getItem(KEY);
     dir = Number(localStorage.getItem(KEY_DIR)) || 0;
+    style = localStorage.getItem(KEY_STYLE) || style;
   } catch {
     // storage blocked: use default
   }
   if (saved) {
     try {
-      return { img: await imageFrom(saved), dir };
+      return { img: await imageFrom(saved), dir, style };
     } catch {
       clearHead();
     }
   }
-  return { img: drawDefaultHead(), dir: DEFAULT_DIR };
+  return { img: drawDefaultHead(), dir: DEFAULT_DIR, style: 'cartoon' };
 }
