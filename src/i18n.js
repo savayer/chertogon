@@ -75,6 +75,11 @@ export const STRINGS = {
     next: 'Enter / тап — дальше',
     victory: 'Все демоны сожжены! 🔥',
     victorySub: '{name} — легенда района. Enter / тап — в меню',
+    worldTitle: 'Чертогон: 3D-мир',
+    worldLink: '🌍 3D-мир',
+    worldBack: '← К обычной игре',
+    worldFailed: '3D не запустилось в этом браузере',
+    worldHelp: '<b>WASD/стрелки</b> — бег, <b>пробел</b> — прыжок, <b>J/F/X</b> — спичка, <b>M</b> — звук, <b>Esc</b> — меню.<br>Беги куда хочешь: демоны, канава, гаражи, а у Оперного ждёт босс. Лицо и персонажа выбирай в обычной игре.',
   },
   en: {
     defaultName: 'Player',
@@ -150,6 +155,11 @@ export const STRINGS = {
     next: 'Enter / tap — next',
     victory: 'All demons burned! 🔥',
     victorySub: '{name} is a legend of the block. Enter / tap — menu',
+    worldTitle: 'Chertogon: 3D World',
+    worldLink: '🌍 3D World',
+    worldBack: '← Back to the classic game',
+    worldFailed: '3D could not start in this browser',
+    worldHelp: '<b>WASD/arrows</b> — run, <b>space</b> — jump, <b>J/F/X</b> — throw a match, <b>M</b> — sound, <b>Esc</b> — menu.<br>Run anywhere: demons, the canal, the garages, and the boss waits by the Opera. Pick your face and character in the classic game.',
   },
 };
 
