@@ -48,6 +48,13 @@ export function mirroredTiles(scroll, w, width) {
   return tiles;
 }
 
+// A layer's landmark (see BACKDROP_ART) stands in the middle of the view when the camera stops at the level's end,
+// where the boss is fought; x range on the layer for a w px wide one.
+export const landmarkSpan = (levelW, w) => [levelW - (VIEW_W + w) / 2, levelW - (VIEW_W - w) / 2];
+
+// Screen x of x on a backdrop layer that looks s times smaller, the way the 3D camera sees it.
+export const depthX = (x, camX, s) => VIEW_W / 2 + (x - camX - VIEW_W / 2) * s;
+
 // A copy of a loaded picture with color painted over its opaque pixels: the haze over the backdrop layers, black
 // to darken the sky. Shared with the 3D view.
 export function paintOver(img, color, amount) {
@@ -68,18 +75,28 @@ export function paintOver(img, color, amount) {
 }
 
 // The level's ChatGPT backdrop (see BACKDROP_ART); false until its pictures have loaded or if it has none.
-function drawArt(ctx, bg, camX) {
+function drawArt(ctx, bg, camX, levelW) {
   const look = BACKDROP_ART[bg];
   const sky = look && artImage(look.sky);
-  const layers = look?.layers.map((l) => [l, artImage(l.src)]);
-  if (!sky || layers.some(([, img]) => !img)) return false;
+  const layers = look?.layers.map((l) => [l, artImage(l.src), l.landmark && artImage(l.landmark.src)]);
+  if (!sky || layers.some(([l, img, mark]) => !img || (l.landmark && !mark))) return false;
   const k = Math.max(VIEW_W / sky.width, VIEW_H / sky.height); // cover the view, cropping the picture's edges
   ctx.drawImage(paintOver(sky, '#000', look.skyDim), (VIEW_W - sky.width * k) / 2, (VIEW_H - sky.height * k) / 2, sky.width * k, sky.height * k);
-  for (const [l, img] of layers) {
+  for (const [l, img, mark] of layers) {
     const s = CAMERA_DIST / (CAMERA_DIST - l.z); // a layer this deep looks and scrolls this much smaller
     const h = l.h * s;
     const w = (h * img.width) / img.height;
     const pic = paintOver(img, look.haze, l.haze);
+    ctx.save();
+    if (mark) {
+      // the layer gives way to its landmark
+      const [a, b] = landmarkSpan(levelW, l.landmark.w).map((x) => depthX(x, camX, s));
+      ctx.drawImage(paintOver(mark, look.haze, l.haze), a, VIEW_H - 64 - l.landmark.h * s, b - a, l.landmark.h * s);
+      ctx.beginPath();
+      ctx.rect(0, 0, VIEW_W, VIEW_H);
+      ctx.rect(a, 0, b - a, VIEW_H);
+      ctx.clip('evenodd');
+    }
     for (const t of mirroredTiles(camX * s, w, VIEW_W)) {
       ctx.save();
       ctx.translate(t.x + (t.flip ? w : 0), VIEW_H - 64 - h);
@@ -87,12 +104,13 @@ function drawArt(ctx, bg, camX) {
       ctx.drawImage(pic, 0, 0, w, h);
       ctx.restore();
     }
+    ctx.restore();
   }
   return true;
 }
 
-function drawBackground(ctx, bg, camX, time) {
-  if (drawArt(ctx, bg, camX)) return;
+function drawBackground(ctx, bg, camX, time, levelW) {
+  if (drawArt(ctx, bg, camX, levelW)) return;
   const b = BACKDROPS[bg] || BACKDROPS.street;
   const grad = ctx.createLinearGradient(0, 0, 0, VIEW_H);
   grad.addColorStop(0, b.sky[0]);
@@ -504,7 +522,7 @@ export function drawGame(ctx, state, head, name) {
     ctx.rotate(Math.sin(state.time * 2.5) * 0.035);
     ctx.translate(-VIEW_W / 2, -VIEW_H / 2);
   }
-  drawBackground(ctx, lvl.bg, state.camX, state.time);
+  drawBackground(ctx, lvl.bg, state.camX, state.time, state.level.cols * TILE);
   ctx.save();
   ctx.translate(-Math.round(state.camX), VIEW_H - state.level.rows * TILE);
   drawTiles(ctx, state);

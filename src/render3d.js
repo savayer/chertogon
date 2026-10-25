@@ -343,6 +343,7 @@ function buildLevel(state) {
   const look = buildBackdrop(world, {
     bg,
     gy: Y(groundRow * TILE),
+    levelW,
     span: (z) => [-0.5 * (CAMERA_DIST - z), levelW + 0.5 * (CAMERA_DIST - z)], // what the camera can see at depth z
   });
   scene.background = look.sky;

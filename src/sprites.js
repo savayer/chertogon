@@ -7,22 +7,32 @@ const images = {};
 // The city backdrops of both views by level backdrop: ChatGPT art, sources in docs/gen. The sky stays put behind
 // everything, darkened by skyDim; layers are cut-out pictures, far to near, standing on the ground line: z is
 // their depth in the 3D view (the 2D view scrolls them at the speed that depth gives), h their height in world px,
-// haze how much of the level's haze colour is painted over them, so they stay behind the characters.
+// haze how much of the level's haze colour is painted over them, so they stay behind the characters. A layer's
+// landmark (w x h world px, one picture, not repeated) takes its place where the boss is fought.
 export const BACKDROP_ART = {
   street: {
     sky: 'assets/backdrops/street-sky.png', skyDim: 0.18, haze: '#4a3563',
-    layers: [{ src: 'assets/backdrops/street-near.png', z: -250, h: 380, haze: 0.6 }],
+    layers: [{
+      src: 'assets/backdrops/street-near.png', z: -250, h: 380, haze: 0.6,
+      landmark: { src: 'assets/backdrops/street-opera.png', h: 400, w: 780 }, // Buryat Opera and Ballet Theatre, Ulan-Ude
+    }],
   },
   garages: {
     sky: 'assets/backdrops/garages-sky.png', skyDim: 0.18, haze: '#2e3352',
     layers: [
-      { src: 'assets/backdrops/garages-houses.png', z: -450, h: 400, haze: 0.55 },
+      {
+        src: 'assets/backdrops/garages-houses.png', z: -450, h: 400, haze: 0.55,
+        landmark: { src: 'assets/backdrops/garages-geser.png', h: 500, w: 798 }, // the Geser monument, Ulan-Ude
+      },
       { src: 'assets/backdrops/garages-front.png', z: -140, h: 140, haze: 0.3 },
     ],
   },
   hell: {
     sky: 'assets/backdrops/hell-sky.png', skyDim: 0.3, haze: '#3a0d12', // the fire is loud: toned down more
-    layers: [{ src: 'assets/backdrops/hell-near.png', z: -250, h: 380, haze: 0.62 }],
+    layers: [{
+      src: 'assets/backdrops/hell-near.png', z: -250, h: 380, haze: 0.62,
+      landmark: { src: 'assets/backdrops/hell-square.png', h: 420, w: 832 }, // Square of the Soviets, Ulan-Ude, a devil's head for Lenin's
+    }],
   },
 };
 const art = {}; // src -> Image
@@ -33,7 +43,7 @@ export function loadSprites() {
     images[name].src = sheet.src;
   }
   for (const look of Object.values(BACKDROP_ART)) {
-    for (const src of [look.sky, ...look.layers.map((l) => l.src)]) {
+    for (const src of [look.sky, ...look.layers.flatMap((l) => [l.src, l.landmark?.src].filter(Boolean))]) {
       art[src] = new Image();
       art[src].src = src;
     }
