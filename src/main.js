@@ -1,5 +1,5 @@
 import { createGame, loadLevel, nextLevel, respawn, step, musicCue, VIEW_W, VIEW_H } from './game.js';
-import { drawGame, drawCharacter } from './render.js';
+import { drawGame, drawCharacter, drawOverlay } from './render.js';
 import { loadSprites } from './sprites.js';
 import { t, setLang, getLang } from './i18n.js';
 import { unlockAudio, play, isMuted, setMuted, setMusic, pauseAudio } from './sfx.js';
@@ -24,6 +24,9 @@ const NAME_KEY = 'chertogon.name';
 const LANG_KEY = 'chertogon.lang';
 const MUTE_KEY = 'chertogon.mute';
 const HERO_KEY = 'chertogon.hero';
+const VIEW_KEY = 'chertogon.view';
+let view = '3d'; // '3d' or '2d'
+let view3d = null; // render3d.js once the 3D view has started
 let name = '';
 let statusKey = 'statusIdle';
 
@@ -36,6 +39,38 @@ function resize() {
   const k = Math.min(2, window.devicePixelRatio || 1);
   canvas.width = VIEW_W * k;
   canvas.height = VIEW_H * k;
+}
+
+// render3d.js pulls three.js from the CDN: loaded on first use, so the 2D game never depends on it.
+const load3d = () => (load3d.p ??= import('./render3d.js').then((m) => {
+  m.init3d($('gl'));
+  return m;
+}));
+
+function showView() {
+  for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === view));
+  $('gl').hidden = !(view === '3d' && view3d);
+}
+
+async function setView(v) {
+  view = v;
+  showView();
+  if (v !== '3d') return;
+  try {
+    view3d = await load3d();
+  } catch (err) {
+    console.warn('3D view unavailable, playing in 2D', err);
+    if (view === '3d') view = '2d';
+    setStatus('view3dFailed');
+  }
+  showView();
+}
+
+for (const b of document.querySelectorAll('[data-view]')) {
+  b.addEventListener('click', () => {
+    store(VIEW_KEY, b.dataset.view);
+    setView(b.dataset.view);
+  });
 }
 
 function releaseAll() {
@@ -177,6 +212,9 @@ for (const b of document.querySelectorAll('[data-hero]')) {
   b.addEventListener('click', async () => {
     hero = b.dataset.hero;
     store(HERO_KEY, hero);
+    $('name').value = t(b.dataset.i18n); // the player is named after the character; a custom name can be typed after
+    setName($('name').value);
+    store(NAME_KEY, $('name').value);
     clearHead();
     photo = null;
     $('adjust').hidden = true;
@@ -309,7 +347,12 @@ function frame(now) {
   setMusic(cue.track, cue.volume);
   const k = canvas.width / VIEW_W;
   ctx.setTransform(k, 0, 0, k, 0, 0);
-  drawGame(ctx, state, head, name);
+  if (view === '3d' && view3d) {
+    ctx.clearRect(0, 0, VIEW_W, VIEW_H);
+    drawOverlay(ctx, state, name, view3d.draw3d(state, head));
+  } else {
+    drawGame(ctx, state, head, name);
+  }
 
   const deadShown = screen === 'game' && state.mode === 'dead' && state.deadT > 0.8;
   if (deadShown === $('death').hidden) {
@@ -332,7 +375,9 @@ function frame(now) {
 window.__game = () => state; // debug handle for manual/e2e checks
 
 let savedLang = null;
+let savedView = null;
 try {
+  savedView = localStorage.getItem(VIEW_KEY);
   $('name').value = localStorage.getItem(NAME_KEY) || '';
   savedLang = localStorage.getItem(LANG_KEY);
   if (localStorage.getItem(MUTE_KEY)) toggleSound();
@@ -342,6 +387,7 @@ try {
 }
 applyLang(savedLang || (navigator.language.toLowerCase().startsWith('ru') ? 'ru' : 'en'));
 resize();
+setView(savedView === '2d' ? '2d' : '3d');
 loadSprites();
 loadHead(hero).then(setHead).catch((e) => console.error('no head image', e));
 requestAnimationFrame(frame);

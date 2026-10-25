@@ -1,9 +1,9 @@
 import { TILE, VIEW_W, VIEW_H, POPUP_LIFE } from './game.js';
 import { HEAD_W, HEAD_H, CHIN_Y } from './face-math.js';
 import { t } from './i18n.js';
-import { drawSprite, heroFrame, heroChin, itemFrame } from './sprites.js';
+import { drawSprite, heroFrame, heroChin, itemFrame, demonFrame, bossFrame, artImage, BACKDROP_ART } from './sprites.js';
 
-const HEAD_SCALE = 0.3; // head image px -> world px
+export const HEAD_SCALE = 0.3; // head image px -> world px
 const INK = '#111';
 
 const BUFF_LABELS = {
@@ -13,7 +13,7 @@ const BUFF_LABELS = {
   whiskey: 'buffWhiskey',
 };
 
-const BACKDROPS = {
+export const BACKDROPS = {
   street: { sky: ['#ffb37a', '#7b5ea7'], far: '#4a3b6b', near: '#2e2445', window: '#ffd54f' },
   garages: { sky: ['#b0bec5', '#455a64'], far: '#546e7a', near: '#37474f', window: '#ff8a65' },
   hell: { sky: ['#ff5722', '#2b0000'], far: '#5d0f0f', near: '#260404', window: '#ffab00' },
@@ -35,7 +35,64 @@ function fillStroke(ctx, fill, stroke = INK, lw = 2) {
   }
 }
 
+// The 3D view's camera. The 2D view scrolls and sizes the backdrop layers the way it would see them.
+export const CAMERA_FOV = 30;
+export const CAMERA_DIST = VIEW_H / 2 / Math.tan(((CAMERA_FOV / 2) * Math.PI) / 180); // shows about VIEW_W x VIEW_H at z=0
+const toned = new Map(); // src|color|amount -> canvas
+
+// Copies of a w px wide picture covering 0..width scrolled by scroll px; every other copy is mirrored, so they
+// meet without a seam.
+export function mirroredTiles(scroll, w, width) {
+  const tiles = [];
+  for (let i = Math.floor(scroll / w); i * w - scroll < width; i++) tiles.push({ x: i * w - scroll, flip: Math.abs(i % 2) === 1 });
+  return tiles;
+}
+
+// A copy of a loaded picture with color painted over its opaque pixels: the haze over the backdrop layers, black
+// to darken the sky. Shared with the 3D view.
+export function paintOver(img, color, amount) {
+  const key = `${img.src}|${color}|${amount}`;
+  if (!toned.has(key)) {
+    const c = document.createElement('canvas');
+    c.width = img.width;
+    c.height = img.height;
+    const g = c.getContext('2d');
+    g.drawImage(img, 0, 0);
+    g.globalCompositeOperation = 'source-atop';
+    g.globalAlpha = amount;
+    g.fillStyle = color;
+    g.fillRect(0, 0, c.width, c.height);
+    toned.set(key, c);
+  }
+  return toned.get(key);
+}
+
+// The level's ChatGPT backdrop (see BACKDROP_ART); false until its pictures have loaded or if it has none.
+function drawArt(ctx, bg, camX) {
+  const look = BACKDROP_ART[bg];
+  const sky = look && artImage(look.sky);
+  const layers = look?.layers.map((l) => [l, artImage(l.src)]);
+  if (!sky || layers.some(([, img]) => !img)) return false;
+  const k = Math.max(VIEW_W / sky.width, VIEW_H / sky.height); // cover the view, cropping the picture's edges
+  ctx.drawImage(paintOver(sky, '#000', look.skyDim), (VIEW_W - sky.width * k) / 2, (VIEW_H - sky.height * k) / 2, sky.width * k, sky.height * k);
+  for (const [l, img] of layers) {
+    const s = CAMERA_DIST / (CAMERA_DIST - l.z); // a layer this deep looks and scrolls this much smaller
+    const h = l.h * s;
+    const w = (h * img.width) / img.height;
+    const pic = paintOver(img, look.haze, l.haze);
+    for (const t of mirroredTiles(camX * s, w, VIEW_W)) {
+      ctx.save();
+      ctx.translate(t.x + (t.flip ? w : 0), VIEW_H - 64 - h);
+      if (t.flip) ctx.scale(-1, 1);
+      ctx.drawImage(pic, 0, 0, w, h);
+      ctx.restore();
+    }
+  }
+  return true;
+}
+
 function drawBackground(ctx, bg, camX, time) {
+  if (drawArt(ctx, bg, camX)) return;
   const b = BACKDROPS[bg] || BACKDROPS.street;
   const grad = ctx.createLinearGradient(0, 0, 0, VIEW_H);
   grad.addColorStop(0, b.sky[0]);
@@ -88,8 +145,79 @@ function drawBackground(ctx, bg, camX, time) {
   }
 }
 
+// The street's tiles, shared with the 3D view, 2 px per world px: rubble and rusty gravel under an asphalt edge;
+// in hell charred bricks with embers in the joints, dark so the red demons stand out on them.
+const streetTiles = {};
+export function streetTile(hell) {
+  const key = hell ? 'hell' : 'street';
+  if (!streetTiles[key]) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 2 * TILE;
+    const g = c.getContext('2d');
+    if (hell) {
+      g.fillStyle = '#1c1617'; // joints
+      g.fillRect(0, 0, 64, 64);
+      g.fillStyle = '#3a3134';
+      for (const [x, y] of [[2, 2], [34, 2], [-14, 34], [18, 34], [50, 34]]) g.fillRect(x, y, 28, 28);
+      for (let i = 0; i < 120; i++) {
+        g.fillStyle = hash(i) < 0.5 ? 'rgba(0, 0, 0, 0.25)' : 'rgba(255, 255, 255, 0.05)';
+        g.fillRect(hash(i + 1) * 64, hash(i + 2) * 64, 2, 2);
+      }
+      g.fillStyle = '#ff6a1a'; // embers
+      for (const [x, y, w, h] of [[31, 8, 2, 6], [14, 31, 6, 2], [47, 44, 2, 5], [56, 31, 4, 2]]) g.fillRect(x, y, w, h);
+    } else {
+      g.fillStyle = '#4a352f';
+      g.fillRect(0, 0, 64, 64);
+      for (let i = 0; i < 180; i++) {
+        g.fillStyle = ['#5e4a42', '#3a2824', '#7a5038', '#6a625e'][Math.floor(hash(i) * 4)];
+        g.fillRect(hash(i + 1) * 64, hash(i + 2) * 64, 2 + hash(i + 3) * 4, 2 + hash(i + 4) * 3);
+      }
+      g.fillStyle = '#5a5458'; // the asphalt's edge
+      g.fillRect(0, 0, 64, 6);
+      g.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      g.fillRect(0, 6, 64, 2);
+    }
+    streetTiles[key] = c;
+  }
+  return streetTiles[key];
+}
+
+// A platform's front, 2 px per world px (32 x 14): light concrete with an ink outline, so it stands out against the
+// backdrop as the old 2D planks did; ash-grey in hell. Shared with the 3D view.
+const slabTiles = {};
+export function slabTile(hell) {
+  const key = hell ? 'hell' : 'street';
+  if (!slabTiles[key]) {
+    const c = document.createElement('canvas');
+    c.width = 2 * TILE;
+    c.height = 28;
+    const g = c.getContext('2d');
+    const [base, light, dark] = hell ? ['#a8958c', '#c8b8ae', '#6e5e58'] : ['#c2b8ac', '#e2dacd', '#857c72'];
+    g.fillStyle = base;
+    g.fillRect(0, 0, 64, 28);
+    for (let i = 0; i < 40; i++) {
+      g.fillStyle = hash(i + 200) < 0.5 ? 'rgba(0, 0, 0, 0.12)' : 'rgba(255, 255, 255, 0.12)';
+      g.fillRect(hash(i + 201) * 64, 4 + hash(i + 202) * 16, 2, 2);
+    }
+    g.fillStyle = light;
+    g.fillRect(0, 2, 64, 3);
+    g.fillStyle = dark;
+    g.fillRect(0, 19, 64, 5);
+    g.fillRect(0, 2, 2, 22); // the joint with the next slab
+    g.fillStyle = INK;
+    g.fillRect(0, 0, 64, 2);
+    g.fillRect(0, 24, 64, 4);
+    slabTiles[key] = c;
+  }
+  return slabTiles[key];
+}
+
 function drawTiles(ctx, state) {
   const { level, camX } = state;
+  const hell = state.levels[state.levelIndex].bg === 'hell';
+  const pattern = ctx.createPattern(streetTile(hell), 'repeat');
+  pattern.setTransform(new DOMMatrix().scale(0.5));
+  const topColor = hell ? '#2b2426' : '#4e4250'; // asphalt (charcoal in hell) as the 3D view lights it
   const c0 = Math.max(0, Math.floor(camX / TILE));
   const c1 = Math.min(level.cols - 1, Math.ceil((camX + VIEW_W) / TILE));
   for (let r = 0; r < level.rows; r++) {
@@ -99,29 +227,39 @@ function drawTiles(ctx, state) {
       const x = c * TILE;
       const y = r * TILE;
       if (t === 2) {
-        ctx.fillStyle = '#8d6e63';
-        ctx.fillRect(x, y, TILE, 14);
-        ctx.fillStyle = '#5d4037';
-        ctx.fillRect(x, y + 10, TILE, 4);
-        ctx.strokeStyle = INK;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x + 1, y + 1, TILE - 2, 12);
+        ctx.drawImage(slabTile(hell), x, y, TILE, 14);
         continue;
       }
-      const top = r === 0 || !level.tiles[(r - 1) * level.cols + c];
-      ctx.fillStyle = state.levels[state.levelIndex].bg === 'hell' ? '#5d4037' : '#d7ccc8';
+      ctx.fillStyle = pattern;
       ctx.fillRect(x, y, TILE, TILE);
-      ctx.strokeStyle = '#4e4a5a';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x + 1, y + 1, TILE / 2 - 2, TILE / 2 - 2);
-      ctx.strokeRect(x + TILE / 2 + 1, y + 1, TILE / 2 - 2, TILE / 2 - 2);
-      ctx.strokeRect(x + TILE / 4 + 1, y + TILE / 2 + 1, TILE / 2 - 2, TILE / 2 - 2);
-      if (top) {
-        ctx.fillStyle = state.levels[state.levelIndex].bg === 'hell' ? '#ff6d00' : '#a1887f';
-        ctx.fillRect(x, y, TILE, 5);
+      if (r === 0 || !level.tiles[(r - 1) * level.cols + c]) {
+        ctx.fillStyle = topColor;
+        ctx.fillRect(x, y, TILE, 8);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.fillRect(x, y + 8, TILE, 2);
+        if (hash(c * 13.7 + 1) < 0.22) {
+          // a chipped kerb where the 3D view puts broken paving or a pothole
+          ctx.fillStyle = '#1c181d';
+          ctx.fillRect(x + 6 + hash(c * 13.7 + 3) * 14, y, 8, 4);
+          ctx.fillRect(x + 8 + hash(c * 13.7 + 3) * 14, y + 4, 4, 2);
+        }
       }
     }
   }
+}
+
+// Hero pose flags for drawCharacter / heroFrame.
+export function heroOpts(state) {
+  const p = state.player;
+  const dead = state.mode === 'dead';
+  return {
+    moving: !dead && p.onGround && p.vx !== 0,
+    airborne: !dead && !p.onGround,
+    rising: p.vy < 0,
+    hurt: !dead && p.knock > 0,
+    throwing: !dead && p.fireCd > 0.1,
+    lying: dead ? Math.min(1, state.deadT / 0.35) : 0,
+  };
 }
 
 // The default head also has hurt and dead faces; uploaded heads have one.
@@ -149,19 +287,12 @@ export function drawCharacter(ctx, x, y, facing, walk, head, opts = {}) {
   ctx.restore();
 }
 
-// Imp frames: 4-step walk; the fire imp has 2 walk frames and 2 spitting ones.
 function drawDemon(ctx, e, time) {
   const dir = e.hold ? e.aim : e.vx > 0 ? 1 : -1;
-  let frame = Math.floor(time * 8) % 4;
-  if (e.shooter) {
-    // mouth opens on the wind-up so the player sees the flame coming
-    if (e.hold) frame = e.shootT < 0.45 ? 2 + (Math.floor(time * 10) % 2) : 0;
-    else frame = Math.floor(time * 6) % 2;
-  }
   ctx.save();
   ctx.translate(e.x + e.w / 2, e.y + e.h);
   ctx.scale(dir, 1);
-  drawSprite(ctx, e.shooter ? 'fire-imp' : 'imp', frame);
+  drawSprite(ctx, e.shooter ? 'fire-imp' : 'imp', demonFrame(e, time));
   ctx.restore();
 }
 
@@ -176,14 +307,11 @@ function drawFlyer(ctx, e, time, playerX) {
   ctx.restore();
 }
 
-// Boss frames: 0-1 walk, 2 jump, 3 hurt (boss 0, who doesn't shoot) or shooting (bosses 1 and 2).
 function drawBoss(ctx, b, index, time) {
-  let frame = !b.onGround ? 2 : b.vx ? Math.floor(time * 5) % 2 : 0;
-  if (index === 0 ? b.hurt > 0 : b.active && b.shootEvery - b.shootT < 0.3) frame = 3;
   ctx.save();
   ctx.translate(b.x + b.w / 2, b.y + b.h);
   ctx.scale(b.facing, 1);
-  drawSprite(ctx, `boss${index}`, frame);
+  drawSprite(ctx, `boss${index}`, bossFrame(b, index, time));
   ctx.restore();
 }
 
@@ -302,12 +430,13 @@ function pulsing(ctx, state, line, draw) {
   ctx.restore();
 }
 
-function drawPopups(ctx, state) {
+// anchor: screen point over the top middle of the player's hitbox
+function drawPopups(ctx, state, anchor) {
   const p = state.player;
   for (const q of state.popups) {
     if (q.t >= POP_HOLD + POP_FLY) continue;
-    let x = p.x + p.w / 2 - Math.round(state.camX);
-    let y = p.y + VIEW_H - state.level.rows * TILE - 84 - Math.min(q.t, POP_HOLD) * 20;
+    let x = anchor.x;
+    let y = anchor.y - 84 - Math.min(q.t, POP_HOLD) * 20;
     let k = Math.min(1, q.t / 0.12);
     if (q.t > POP_HOLD) {
       const f = smooth((q.t - POP_HOLD) / POP_FLY);
@@ -396,14 +525,7 @@ export function drawGame(ctx, state, head, name) {
     ctx.fill();
   }
   // whole px like the camera, or the hero wobbles by a fraction of a pixel while it follows him
-  drawCharacter(ctx, Math.round(p.x), p.y, p.facing, p.walk, head, {
-    moving: !dead && p.onGround && p.vx !== 0,
-    airborne: !dead && !p.onGround,
-    rising: p.vy < 0,
-    hurt: !dead && p.knock > 0,
-    throwing: !dead && p.fireCd > 0.1,
-    lying: dead ? Math.min(1, state.deadT / 0.35) : 0,
-  });
+  drawCharacter(ctx, Math.round(p.x), p.y, p.facing, p.walk, head, heroOpts(state));
   if (dead && state.deathCause === 'hp' && head?.img && state.deadT > 0.3) {
     // the soul leaves the body
     const t = state.deadT - 0.3;
@@ -421,9 +543,15 @@ export function drawGame(ctx, state, head, name) {
   ctx.restore();
   ctx.restore();
 
+  drawOverlay(ctx, state, name, { x: p.x + p.w / 2 - Math.round(state.camX), y: p.y + VIEW_H - state.level.rows * TILE });
+}
+
+// Everything drawn in screen space over the world: HUD, pickup popups, the death tint and banners.
+// anchor: where the top middle of the player's hitbox is on screen.
+export function drawOverlay(ctx, state, name, anchor) {
   drawHud(ctx, state);
-  drawPopups(ctx, state);
-  if (dead) {
+  drawPopups(ctx, state, anchor);
+  if (state.mode === 'dead') {
     ctx.fillStyle = `rgba(40, 0, 0, ${Math.min(0.55, state.deadT * 0.6)})`;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   }
